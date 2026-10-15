@@ -65,18 +65,25 @@ class QueueSimEngine:
         self.customers_served_total = 0
         self.customers_served_by_prio = defaultdict(int)
 
-        self.completed_customers: List[Customer] = []
-        self.recent_drops: List[Customer] = []
+        self.total_system_time = 0.0
+        self.total_waiting_time = 0.0
+        self.total_waiting_time_by_prio = defaultdict(float)
+
+        self.completed_customers = deque(maxlen=5000)
+        self.recent_drops = deque(maxlen=30)
+
+        self.retired_busy_time = 0.0
+        self.server_capacity_integral = 0.0
 
         self.state_durations = defaultdict(float)
         self.queue_state_durations = defaultdict(float)
 
-        self.time_history: List[float] = [0.0]
-        self.occupancy_history: List[int] = [0]
-        self.queue_len_history: List[int] = [0]
-        self.drop_count_history: List[int] = [0]
+        self.time_history = deque([0.0], maxlen=1000)
+        self.occupancy_history = deque([0], maxlen=1000)
+        self.queue_len_history = deque([0], maxlen=1000)
+        self.drop_count_history = deque([0], maxlen=1000)
 
-        self.event_log: List[dict] = []
+        self.event_log = deque(maxlen=200)
 
         self.last_arrival_wall_time = 0.0
         self.last_arrival_prio = -1
@@ -146,6 +153,7 @@ class QueueSimEngine:
         if dt > 0:
             self.state_durations[self.total_in_system] += dt
             self.queue_state_durations[self.total_in_queue] += dt
+            self.server_capacity_integral += self.c * dt
         self.last_event_time = new_time
 
     def step(self) -> Optional[dict]:
@@ -177,8 +185,6 @@ class QueueSimEngine:
 
         if event_info:
             self.event_log.append(event_info)
-            if len(self.event_log) > 200:
-                self.event_log.pop(0)
 
         return event_info
 
@@ -218,14 +224,16 @@ class QueueSimEngine:
                     self._schedule_event(depart_t, 'departure', server.id)
 
                     p_label = f" (Prio: {PRIORITY_NAMES[next_cust.priority]})" if self.priority_enabled else ""
-                    events.append({
+                    ev_dict = {
                         'time': self.current_time,
                         'type': 'QUEUE_TO_SERVICE',
                         'customer': next_cust,
                         'server_id': server.id,
                         'prio': next_cust.priority,
                         'msg': f"Dispatched: Cust #{next_cust.id}{p_label} from Queue -> Server {server.id+1}",
-                    })
+                    }
+                    self.event_log.append(ev_dict)
+                    events.append(ev_dict)
         return events
 
     def _handle_arrival(self, prio: int) -> dict:
@@ -302,8 +310,6 @@ class QueueSimEngine:
             self.customers_dropped_total += 1
             self.customers_dropped_by_prio[cust.priority] += 1
             self.recent_drops.append(cust)
-            if len(self.recent_drops) > 30:
-                self.recent_drops.pop(0)
 
             if idle_server is not None:
                 self.assign_idle_servers()
@@ -328,9 +334,10 @@ class QueueSimEngine:
 
         if departing_cust is not None:
             departing_cust.departure_time = self.current_time
+            self.total_system_time += departing_cust.system_time
+            self.total_waiting_time += departing_cust.waiting_time
+            self.total_waiting_time_by_prio[departing_cust.priority] += departing_cust.waiting_time
             self.completed_customers.append(departing_cust)
-            if len(self.completed_customers) > 20000:
-                self.completed_customers.pop(0)
 
             self.customers_served_total += 1
             self.customers_served_by_prio[departing_cust.priority] += 1
@@ -413,24 +420,20 @@ class QueueSimEngine:
             L_emp = 0.0
             Lq_emp = 0.0
 
-        busy_time = sum(s.total_busy_time for s in self.servers)
+        busy_time = self.retired_busy_time + sum(s.total_busy_time for s in self.servers)
         for s in self.servers:
             if s.is_busy and s.busy_start_time is not None:
                 busy_time += (self.current_time - s.busy_start_time)
-        rho_emp = busy_time / (self.c * T)
+        denom = self.server_capacity_integral if self.server_capacity_integral > 0 else (self.c * T)
+        rho_emp = busy_time / denom
 
-        if self.completed_customers:
-            W_emp = sum(c.system_time for c in self.completed_customers) / len(self.completed_customers)
-            Wq_emp = sum(c.waiting_time for c in self.completed_customers) / len(self.completed_customers)
+        W_emp = (self.total_system_time / self.customers_served_total) if self.customers_served_total > 0 else 0.0
+        Wq_emp = (self.total_waiting_time / self.customers_served_total) if self.customers_served_total > 0 else 0.0
 
-            Wq_prio = {}
-            for p in (-1, 0, 1, 2):
-                p_custs = [c for c in self.completed_customers if c.priority == p]
-                Wq_prio[p] = sum(c.waiting_time for c in p_custs) / len(p_custs) if p_custs else 0.0
-        else:
-            W_emp = 0.0
-            Wq_emp = 0.0
-            Wq_prio = {-1: 0.0, 0: 0.0, 1: 0.0, 2: 0.0}
+        Wq_prio = {}
+        for p in (-1, 0, 1, 2):
+            served_p = self.customers_served_by_prio[p]
+            Wq_prio[p] = (self.total_waiting_time_by_prio[p] / served_p) if served_p > 0 else 0.0
 
         admitted = self.customers_arrived_total - self.customers_dropped_total
         lambda_eff = admitted / T

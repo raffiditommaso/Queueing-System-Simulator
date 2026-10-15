@@ -791,12 +791,47 @@ def generate_theory_html(
         c_val = m if m is not None else (engine.c if engine else 1)
         K_val = engine.K if engine else float("inf")
 
+        active_arr_dists = (
+            [d for d in engine.arrival_dists.values() if d is not None]
+            if engine and hasattr(engine, "arrival_dists") and engine.arrival_dists
+            else []
+        )
+        all_arr_exponential = (
+            bool(active_arr_dists) and all(isinstance(d, ExponentialDist) for d in active_arr_dists)
+            if active_arr_dists
+            else (engine is None)
+        )
+        service_is_exponential = (
+            isinstance(engine.service_dist, ExponentialDist)
+            if (engine and hasattr(engine, "service_dist") and engine.service_dist is not None)
+            else (engine is None)
+        )
+
         theo = {}
         if lam_val > 0 and mu_val > 0:
-            if math.isinf(K_val):
-                theo = TheoreticalModels.solve_mmc_infinite(lam_val, mu_val, c_val)
+            if (
+                service_is_exponential
+                and all_arr_exponential
+                and (not getattr(engine, "priority_enabled", False) or math.isinf(K_val))
+            ):
+                if math.isinf(K_val):
+                    theo = TheoreticalModels.solve_mmc_infinite(lam_val, mu_val, c_val)
+                else:
+                    theo = TheoreticalModels.solve_mmc_finite(lam_val, mu_val, c_val, int(K_val))
+            elif (
+                all_arr_exponential
+                and not service_is_exponential
+                and c_val == 1
+                and math.isinf(K_val)
+                and engine is not None
+                and hasattr(engine, "service_dist")
+                and engine.service_dist is not None
+            ):
+                theo = TheoreticalModels.solve_mg1_pollaczek_khinchine(lam_val, engine.service_dist)
             else:
-                theo = TheoreticalModels.solve_mmc_finite(lam_val, mu_val, c_val, int(K_val))
+                theo = {}
+
+        is_unstable = bool(theo and theo.get("unstable", False))
 
         # ---------------------------------------------------------------
         # Topic 7: Average Server Utilization U & Traffic Intensity rho
@@ -805,7 +840,15 @@ def generate_theory_html(
             rho_offered = lam_val / max(1e-6, c_val * mu_val)
             rho_sim = m_stats.get("rho", 0.0)
             p_loss_theo = theo.get("p_loss", 0.0) if theo else 0.0
-            rho_carried_theo = rho_offered * (1.0 - p_loss_theo)
+            if is_unstable:
+                rho_carried_theo = 1.0
+                u_theo_display = "1.0000 (Saturated)"
+            elif not theo:
+                rho_carried_theo = 0.0
+                u_theo_display = "N/A"
+            else:
+                rho_carried_theo = theo.get("rho", rho_offered * (1.0 - p_loss_theo))
+                u_theo_display = f"{rho_carried_theo:.4f}"
 
             eq1 = latex_eq_row(
                 r"\rho = \frac{\lambda}{m \cdot \mu}, \qquad U = \frac{\lambda_{\mathrm{eff}}}{m \cdot \mu} = \frac{\lambda\left(1 - P_{\mathrm{loss}}\right)}{m \cdot \mu}",
@@ -869,7 +912,7 @@ def generate_theory_html(
                 <tr><td>Aggregate Arrival Rate (<i>&lambda;</i>)</td><td>Input parameter</td><td>{lam_val:.4f} cust/s</td></tr>
                 <tr><td>Total Service Capacity (<i>m&mu;</i>)</td><td>{c_val} &times; {mu_val:.4f}</td><td>{c_val * mu_val:.4f} cust/s</td></tr>
                 <tr><td>Theoretical Offered Load (<i>&rho;</i><sub>offered</sub>)</td><td><i>&lambda;</i> / (<i>m&mu;</i>)</td><td>{rho_offered:.4f}</td></tr>
-                <tr><td>Theoretical Carried Utilization (<i>U</i><sub>theo</sub>)</td><td><i>&lambda;</i>(1 &minus; <i>P</i><sub>loss</sub>) / (<i>m&mu;</i>)</td><td>{rho_carried_theo:.4f}</td></tr>
+                <tr><td>Theoretical Carried Utilization (<i>U</i><sub>theo</sub>)</td><td><i>&lambda;</i>(1 &minus; <i>P</i><sub>loss</sub>) / (<i>m&mu;</i>)</td><td>{u_theo_display}</td></tr>
                 <tr class="bottom-rule"><td>Simulated Server Utilization (<i>U</i><sub>sim</sub>)</td><td>Continuous time integral (Eq. 2)</td><td>{rho_sim:.4f}</td></tr>
             </table>
             """
@@ -879,9 +922,18 @@ def generate_theory_html(
         # Topic 8: Average System Customers (L)
         # ---------------------------------------------------------------
         elif topic_index == 8:
-            L_theo = theo.get("L", 0.0) if theo else 0.0
+            L_val = theo.get("L") if theo else None
             L_sim = m_stats.get("L", 0.0)
             littles_L = m_stats.get("littles_L", 0.0)
+
+            if is_unstable:
+                L_theo_str = "&infin; (Unstable)"
+            elif L_val is None:
+                L_theo_str = "N/A"
+            elif math.isinf(L_val) or math.isnan(L_val):
+                L_theo_str = "&infin; (Infinite Variance)"
+            else:
+                L_theo_str = f"{L_val:.4f} cust"
 
             eq1 = latex_eq_row(
                 r"L = \mathrm{E}[N(t)] = \sum_{n=0}^{\infty} n\, P_n = L_q + \frac{\lambda_{\mathrm{eff}}}{\mu}",
@@ -929,7 +981,7 @@ def generate_theory_html(
             <h2>V. Current Simulator Values &amp; Comparison</h2>
             <table class="book-table">
                 <tr><th>Quantity</th><th>Formula / Method</th><th>Live Simulator Value</th></tr>
-                <tr><td>Theoretical Occupancy (<i>L</i><sub>theo</sub>)</td><td>Analytical model (Eq. 1)</td><td>{L_theo:.4f} cust</td></tr>
+                <tr><td>Theoretical Occupancy (<i>L</i><sub>theo</sub>)</td><td>Analytical model (Eq. 1)</td><td>{L_theo_str}</td></tr>
                 <tr><td>Simulated Time-Average (<i>L</i><sub>sim</sub>)</td><td>Time integral (Eq. 2)</td><td>{L_sim:.4f} cust</td></tr>
                 <tr class="bottom-rule"><td>Little's Law Product (<i>&lambda;</i><sub>eff</sub> &middot; <i>W</i><sub>sim</sub>)</td><td>Conservation check</td><td>{littles_L:.4f} cust</td></tr>
             </table>
@@ -940,9 +992,18 @@ def generate_theory_html(
         # Topic 9: Average Queue Length (Lq)
         # ---------------------------------------------------------------
         elif topic_index == 9:
-            Lq_theo = theo.get("Lq", 0.0) if theo else 0.0
+            Lq_val = theo.get("Lq") if theo else None
             Lq_sim = m_stats.get("Lq", 0.0)
             littles_Lq = m_stats.get("littles_Lq", 0.0)
+
+            if is_unstable:
+                Lq_theo_str = "&infin; (Unstable)"
+            elif Lq_val is None:
+                Lq_theo_str = "N/A"
+            elif math.isinf(Lq_val) or math.isnan(Lq_val):
+                Lq_theo_str = "&infin; (Infinite Variance)"
+            else:
+                Lq_theo_str = f"{Lq_val:.4f} cust"
 
             eq1 = latex_eq_row(
                 r"L_q = \sum_{n=m}^{\infty} (n - m)\,P_n, \qquad L_q^{(M/G/1)} = \frac{\rho^2\left(1 + C_s^2\right)}{2(1 - \rho)}",
@@ -990,7 +1051,7 @@ def generate_theory_html(
             <h2>V. Current Simulator Values &amp; Comparison</h2>
             <table class="book-table">
                 <tr><th>Quantity</th><th>Formula / Method</th><th>Live Simulator Value</th></tr>
-                <tr><td>Theoretical Queue Length (<i>L</i><sub><i>q</i>,theo</sub>)</td><td>Analytical model (Eq. 1)</td><td>{Lq_theo:.4f} cust</td></tr>
+                <tr><td>Theoretical Queue Length (<i>L</i><sub><i>q</i>,theo</sub>)</td><td>Analytical model (Eq. 1)</td><td>{Lq_theo_str}</td></tr>
                 <tr><td>Simulated Queue Length (<i>L</i><sub><i>q</i>,sim</sub>)</td><td>Time integral (Eq. 2)</td><td>{Lq_sim:.4f} cust</td></tr>
                 <tr class="bottom-rule"><td>Little's Law Product (<i>&lambda;</i><sub>eff</sub> &middot; <i>W</i><sub><i>q</i>,sim</sub>)</td><td>Conservation check</td><td>{littles_Lq:.4f} cust</td></tr>
             </table>
@@ -1001,10 +1062,19 @@ def generate_theory_html(
         # Topic 10: Average System Time (W)
         # ---------------------------------------------------------------
         elif topic_index == 10:
-            W_theo = theo.get("W", 0.0) if theo else 0.0
+            W_val = theo.get("W") if theo else None
             W_sim = m_stats.get("W", 0.0)
             Wq_sim = m_stats.get("Wq", 0.0)
             es_val = 1.0 / max(1e-6, mu_val)
+
+            if is_unstable:
+                W_theo_str = "&infin; (Unstable)"
+            elif W_val is None:
+                W_theo_str = "N/A"
+            elif math.isinf(W_val) or math.isnan(W_val):
+                W_theo_str = "&infin; (Infinite Variance)"
+            else:
+                W_theo_str = f"{W_val:.4f} s"
 
             eq1 = latex_eq_row(
                 r"W = \mathrm{E}[T_{\mathrm{sojourn}}] = W_q + \mathrm{E}[S] = W_q + \frac{1}{\mu}",
@@ -1052,7 +1122,7 @@ def generate_theory_html(
             <h2>V. Current Simulator Values &amp; Comparison</h2>
             <table class="book-table">
                 <tr><th>Quantity</th><th>Formula / Method</th><th>Live Simulator Value</th></tr>
-                <tr><td>Theoretical Sojourn Time (<i>W</i><sub>theo</sub>)</td><td>Analytical model (Eq. 1)</td><td>{W_theo:.4f} s</td></tr>
+                <tr><td>Theoretical Sojourn Time (<i>W</i><sub>theo</sub>)</td><td>Analytical model (Eq. 1)</td><td>{W_theo_str}</td></tr>
                 <tr><td>Simulated Sojourn Time (<i>W</i><sub>sim</sub>)</td><td>Sample average (Eq. 2)</td><td>{W_sim:.4f} s</td></tr>
                 <tr class="bottom-rule"><td>Decomposition Check (<i>W</i><sub><i>q</i>,sim</sub> + 1/<i>&mu;</i>)</td><td>{Wq_sim:.4f} s + {es_val:.4f} s</td><td>{Wq_sim + es_val:.4f} s</td></tr>
             </table>
@@ -1063,8 +1133,21 @@ def generate_theory_html(
         # Topic 11: Average Waiting Time in Queue (Wq)
         # ---------------------------------------------------------------
         elif topic_index == 11:
-            Wq_theo = theo.get("Wq", 0.0) if theo else 0.0
+            Wq_val = theo.get("Wq") if theo else None
             Wq_sim = m_stats.get("Wq", 0.0)
+
+            if is_unstable:
+                Wq_theo_str = "&infin; (Unstable)"
+                disc_str = "Divergent"
+            elif Wq_val is None:
+                Wq_theo_str = "N/A"
+                disc_str = "-"
+            elif math.isinf(Wq_val) or math.isnan(Wq_val):
+                Wq_theo_str = "&infin; (Infinite Variance)"
+                disc_str = "Divergent"
+            else:
+                Wq_theo_str = f"{Wq_val:.4f} s"
+                disc_str = f"{abs(Wq_sim - Wq_val):.4f} s"
 
             eq1 = latex_eq_row(
                 r"W_q^{(M/G/1)} = \frac{\lambda\,\mathrm{E}[S^2]}{2(1 - \rho)} = \frac{\rho}{\mu(1 - \rho)} \cdot \left(\frac{1 + C_s^2}{2}\right)",
@@ -1112,9 +1195,9 @@ def generate_theory_html(
             <h2>V. Current Simulator Values &amp; Comparison</h2>
             <table class="book-table">
                 <tr><th>Quantity</th><th>Formula / Method</th><th>Live Simulator Value</th></tr>
-                <tr><td>Theoretical Mean Wait (<i>W</i><sub><i>q</i>,theo</sub>)</td><td>Analytical model (Eq. 1)</td><td>{Wq_theo:.4f} s</td></tr>
+                <tr><td>Theoretical Mean Wait (<i>W</i><sub><i>q</i>,theo</sub>)</td><td>Analytical model (Eq. 1)</td><td>{Wq_theo_str}</td></tr>
                 <tr><td>Simulated Mean Wait (<i>W</i><sub><i>q</i>,sim</sub>)</td><td>Sample average (Eq. 2)</td><td>{Wq_sim:.4f} s</td></tr>
-                <tr class="bottom-rule"><td>Absolute Discrepancy |<i>W</i><sub><i>q</i>,sim</sub> &minus; <i>W</i><sub><i>q</i>,theo</sub>|</td><td>Empirical convergence error</td><td>{abs(Wq_sim - Wq_theo):.4f} s</td></tr>
+                <tr class="bottom-rule"><td>Absolute Discrepancy |<i>W</i><sub><i>q</i>,sim</sub> &minus; <i>W</i><sub><i>q</i>,theo</sub>|</td><td>Empirical convergence error</td><td>{disc_str}</td></tr>
             </table>
             """
             return title, html
@@ -1124,6 +1207,7 @@ def generate_theory_html(
         # ---------------------------------------------------------------
         elif topic_index == 12:
             p_loss_theo = theo.get("p_loss", 0.0) if theo else 0.0
+            p_loss_theo_str = f"{p_loss_theo*100.0:.2f}%" if theo else "N/A"
             p_loss_sim = m_stats.get("p_loss", 0.0)
             arr_tot = m_stats.get("arrived", 0)
             drop_tot = m_stats.get("dropped", 0)
@@ -1175,7 +1259,7 @@ def generate_theory_html(
             <h2>V. Current Simulator Values &amp; Comparison</h2>
             <table class="book-table">
                 <tr><th>Quantity</th><th>Formula / Method</th><th>Live Simulator Value</th></tr>
-                <tr><td>Theoretical Loss Probability (<i>P</i><sub>loss,theo</sub>)</td><td><i>P</i><sub><i>m</i>+<i>K</i></sub> (Eq. 1)</td><td>{p_loss_theo*100.0:.2f}%</td></tr>
+                <tr><td>Theoretical Loss Probability (<i>P</i><sub>loss,theo</sub>)</td><td><i>P</i><sub><i>m</i>+<i>K</i></sub> (Eq. 1)</td><td>{p_loss_theo_str}</td></tr>
                 <tr><td>Simulated Loss Probability (<i>P</i><sub>loss,sim</sub>)</td><td><i>N</i><sub>dropped</sub> / <i>N</i><sub>arrived</sub> (Eq. 2)</td><td>{p_loss_sim*100.0:.2f}%</td></tr>
                 <tr class="bottom-rule"><td>Dropped / Total Arrivals</td><td>Empirical counters</td><td>{drop_tot:,} / {arr_tot:,} cust</td></tr>
             </table>

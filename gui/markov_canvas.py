@@ -48,7 +48,8 @@ class MarkovChainView(QWidget):
 
         # System Capacity
         is_inf_k = math.isinf(K)
-        N_max = math.inf if is_inf_k else (c + int(K))
+        total_K = (3 * int(K)) if (self.engine.priority_enabled and not is_inf_k) else (math.inf if is_inf_k else int(K))
+        N_max = math.inf if is_inf_k else (c + total_K)
 
         # Rates
         lam_tot = sum(1.0 / max(1e-6, d.mean()) for d in self.engine.arrival_dists.values() if d is not None)
@@ -76,12 +77,13 @@ class MarkovChainView(QWidget):
         painter.drawText(285, 17, k_desc)
 
         # Right Live State Badge Pill
-        if self.engine.priority_enabled and q_count > 0:
+        if self.engine.priority_enabled:
             q0 = len(self.engine.queues.get(0, []))
             q1 = len(self.engine.queues.get(1, []))
             q2 = len(self.engine.queues.get(2, []))
-            badge_text = f"State n = {curr_n} (Busy: {busy_count}/{c} | Q: {q0}+{q1}+{q2})"
-            badge_w = 230
+            cap_label = "∞" if is_inf_k else f"3x{int(K)}"
+            badge_text = f"State n = {curr_n} (Busy: {busy_count}/{c} | Q: {q0}+{q1}+{q2}/{cap_label})"
+            badge_w = 245
         else:
             k_str = "∞" if is_inf_k else str(int(K))
             badge_text = f"State n = {curr_n} (Busy: {busy_count}/{c} | Queued: {q_count}/{k_str})"

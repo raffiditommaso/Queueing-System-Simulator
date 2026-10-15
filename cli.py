@@ -22,8 +22,8 @@ def parse_arguments() -> argparse.Namespace:
         help="Run headlessly in CLI mode without GUI"
     )
     parser.add_argument(
-        '--servers', '-m', '-c', type=str, default='1',
-        help="Number of servers m (int or 'inf')"
+        '--servers', '-m', '-c', type=int, default=1,
+        help="Number of parallel servers m (integer >= 1)"
     )
     parser.add_argument(
         '--queue', '-K', type=str, default='8',
@@ -75,7 +75,7 @@ def run_headless_cli(args: argparse.Namespace) -> None:
     except Exception:
         pass
 
-    c = float('inf') if args.servers.lower() == 'inf' else int(args.servers)
+    c = max(1, int(args.servers))
     K = float('inf') if args.queue.lower() == 'inf' else int(args.queue)
     prio_enabled = bool(args.priority and not args.no_priority)
 

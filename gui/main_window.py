@@ -86,7 +86,7 @@ class QueueSimulatorApp(QMainWindow):
         )
 
         self.engine = QueueSimEngine(
-            n_servers=int(cli_args.servers) if cli_args and cli_args.servers != 'inf' else 1,
+            n_servers=max(1, int(cli_args.servers)) if cli_args else 1,
             queue_capacity=float(cli_args.queue) if cli_args and cli_args.queue != 'inf' else 8,
             priority_enabled=priority_flag,
             seed=cli_args.seed if cli_args else 42,
@@ -167,7 +167,8 @@ class QueueSimulatorApp(QMainWindow):
         self.lbl_kendall = QLabel("[ M/M/1/8 (FIFO) ]")
         self.lbl_kendall.setStyleSheet("font-size: 12px; font-weight: bold; color: #a6e3a1;")
 
-        self.lbl_sim_time = None
+        self.lbl_sim_time = QLabel("Clock: 0.0s")
+        self.lbl_sim_time.setStyleSheet("font-size: 11px; font-weight: bold; color: #89b4fa;")
 
         self.lbl_rho_header = QLabel("Avg Server Utilization U: 0.80")
         self.lbl_rho_header.setStyleSheet("font-size: 11px; font-weight: bold; color: #cdd6f4;")
@@ -214,6 +215,7 @@ class QueueSimulatorApp(QMainWindow):
         )
 
         h_layout.addWidget(self.lbl_kendall)
+        h_layout.addWidget(self.lbl_sim_time)
         h_layout.addSpacing(10)
         h_layout.addWidget(self.lbl_rho_header)
         h_layout.addWidget(self.btn_rho_header_theory)
@@ -1396,6 +1398,7 @@ class QueueSimulatorApp(QMainWindow):
                     c.priority = target_p
                     self.engine.queues[target_p].append(c)
 
+        self.engine._accumulate_time(self.engine.current_time)
         self.engine.c = c_servers
         self.engine.K = q_cap
         self.engine.service_dist = serv_dist
@@ -1405,9 +1408,18 @@ class QueueSimulatorApp(QMainWindow):
             self.engine.servers.append(Server(id=len(self.engine.servers)))
         while len(self.engine.servers) > c_servers:
             popped_srv = self.engine.servers.pop()
+            self.engine.retired_busy_time += popped_srv.total_busy_time
+            if popped_srv.busy_start_time is not None:
+                self.engine.retired_busy_time += (self.engine.current_time - popped_srv.busy_start_time)
+
             if popped_srv.current_customer:
-                p_key = popped_srv.current_customer.priority if self.engine.priority_enabled else -1
-                self.engine.queues[p_key].appendleft(popped_srv.current_customer)
+                cust = popped_srv.current_customer
+                if cust.service_start_time is not None:
+                    cust.arrival_time += (self.engine.current_time - cust.service_start_time)
+                    cust.service_start_time = None
+
+                p_key = cust.priority if self.engine.priority_enabled else -1
+                self.engine.queues[p_key].appendleft(cust)
                 self.engine.event_heap = [
                     ev for ev in self.engine.event_heap
                     if not (ev[2] == 'departure' and ev[3] == popped_srv.id)
@@ -1419,6 +1431,11 @@ class QueueSimulatorApp(QMainWindow):
         self.engine.assign_idle_servers()
 
         self._update_all_views()
+        if self.is_theory_tab_active():
+            self.tab_theory_doc._reload_current(
+                self.tab_theory_doc.current_topic_index,
+                self.tab_theory_doc.current_role,
+            )
 
     # -------------------------------------------------------------------
     # View Updates & Plotting
@@ -1456,7 +1473,7 @@ class QueueSimulatorApp(QMainWindow):
             self._update_theory_table()
 
     def _update_event_log_table(self):
-        logs = self.engine.event_log[-7:]
+        logs = list(self.engine.event_log)[-7:]
         self.table_log.setRowCount(len(logs))
         for row, ev in enumerate(reversed(logs)):
             t_item = QTableWidgetItem(f"{ev['time']:.2f}s")
@@ -1481,6 +1498,11 @@ class QueueSimulatorApp(QMainWindow):
             self._update_plots()
         elif cur_w == self.tab_theory:
             self._update_theory_table()
+        elif cur_w == self.tab_theory_doc and self.tab_theory_doc is not None:
+            self.tab_theory_doc._reload_current(
+                self.tab_theory_doc.current_topic_index,
+                self.tab_theory_doc.current_role,
+            )
 
     def _update_plots(self):
         m = self.engine.get_metrics()
@@ -1500,8 +1522,8 @@ class QueueSimulatorApp(QMainWindow):
         # ---------------------------------------------------------------
         # Plot 1: Occupancy N(t) Step Curve
         # ---------------------------------------------------------------
-        times = self.engine.time_history[-300:]
-        occs = self.engine.occupancy_history[-300:]
+        times = list(self.engine.time_history)[-300:]
+        occs = list(self.engine.occupancy_history)[-300:]
         ax1.step(times, occs, where='post', color="#89b4fa", linewidth=1.5)
         ax1.set_title("System Occupancy N(t) vs Time", color="#cdd6f4", fontsize=10)
         ax1.set_xlabel("Time (s)", color="#a6adc8", fontsize=8)
@@ -1518,9 +1540,10 @@ class QueueSimulatorApp(QMainWindow):
         # Always display a full, well-defined range of states
         max_observed = max(list(pn.keys()) + [0])
         if math.isinf(K):
-            max_state_to_show = max(10, min(20, max_observed + 2))
+            max_state_to_show = max(10, min(25, max_observed + 2))
         else:
-            max_state_to_show = min(20, c + int(K))
+            eff_K = 3 * int(K) if self.engine.priority_enabled else int(K)
+            max_state_to_show = min(25, max(c + eff_K, max_observed))
 
         display_states = list(range(max_state_to_show + 1))
         sim_probs = [pn.get(s, 0.0) for s in display_states]
@@ -1540,8 +1563,10 @@ class QueueSimulatorApp(QMainWindow):
         if lam_equiv > 0 and mu_equiv > 0:
             if math.isinf(K):
                 theo = TheoreticalModels.solve_mmc_infinite(lam_equiv, mu_equiv, c)
-            else:
+            elif not self.engine.priority_enabled:
                 theo = TheoreticalModels.solve_mmc_finite(lam_equiv, mu_equiv, c, int(K))
+            else:
+                theo = {}
 
             if theo and not theo.get('unstable', False):
                 theo_p = [theo['p_n'].get(s, 0.0) for s in display_states]
@@ -1564,9 +1589,10 @@ class QueueSimulatorApp(QMainWindow):
         # Plot 3: Waiting Time Wq
         # ---------------------------------------------------------------
         if not self.engine.priority_enabled:
-            wait_times = [c.waiting_time for c in self.engine.completed_customers[-300:]]
+            wait_times = [c.waiting_time for c in self.engine.completed_customers]
             if wait_times:
-                ax3.hist(wait_times, bins=15, color="#89b4fa", alpha=0.8, edgecolor="#11111b")
+                bins = min(30, max(10, int(len(wait_times) ** 0.5)))
+                ax3.hist(wait_times, bins=bins, color="#89b4fa", alpha=0.8, edgecolor="#11111b")
             ax3.set_title("Waiting Time Wq Histogram (s)", color="#cdd6f4", fontsize=10)
             ax3.set_xlabel("Wait Time Wq (s)", color="#a6adc8", fontsize=8)
         else:
@@ -1582,8 +1608,8 @@ class QueueSimulatorApp(QMainWindow):
         # Plot 4: Rejection & Loss Probability
         # ---------------------------------------------------------------
         if not self.engine.priority_enabled:
-            t_sub = self.engine.time_history[-300:]
-            d_sub = self.engine.drop_count_history[-300:]
+            t_sub = list(self.engine.time_history)[-300:]
+            d_sub = list(self.engine.drop_count_history)[-300:]
             ax4.plot(t_sub, d_sub, color="#f38ba8", linewidth=1.5)
             ax4.set_title("Cumulative Dropped Customers vs Time", color="#cdd6f4", fontsize=10)
             ax4.set_xlabel("Time (s)", color="#a6adc8", fontsize=8)
@@ -1605,28 +1631,45 @@ class QueueSimulatorApp(QMainWindow):
 
     def _update_theory_table(self):
         m = self.engine.get_metrics()
-        lam_tot = sum(d.rate for d in self.engine.arrival_dists.values() if isinstance(d, ExponentialDist))
+        active_arr_dists = [d for d in self.engine.arrival_dists.values() if d is not None]
+        all_arr_exponential = bool(active_arr_dists) and all(isinstance(d, ExponentialDist) for d in active_arr_dists)
+        lam_tot = sum(1.0 / max(1e-6, d.mean()) for d in active_arr_dists)
 
         theo = {}
         theo_note = "Model: "
-        if isinstance(self.engine.service_dist, ExponentialDist) and lam_tot > 0:
-            mu = self.engine.service_dist.rate
+        if (
+            all_arr_exponential
+            and isinstance(self.engine.service_dist, ExponentialDist)
+            and (not self.engine.priority_enabled or math.isinf(self.engine.K))
+            and lam_tot > 0
+        ):
+            mu = 1.0 / max(1e-6, self.engine.service_dist.mean())
             if math.isinf(self.engine.K):
                 theo = TheoreticalModels.solve_mmc_infinite(lam_tot, mu, self.engine.c)
-                theo_note += f"M/M/{self.engine.c} Markovian Queue with Erlang-C Delay Formula."
+                prio_tag = " (Priority Conservation)" if self.engine.priority_enabled else ""
+                theo_note += f"M/M/{self.engine.c} Markovian Queue with Erlang-C Delay Formula{prio_tag}."
             else:
                 theo = TheoreticalModels.solve_mmc_finite(lam_tot, mu, self.engine.c, int(self.engine.K))
                 theo_note += f"M/M/{self.engine.c}/{self.engine.c + int(self.engine.K)} Truncated Markov Chain with Erlang-B Loss."
         elif (
-            isinstance(self.engine.service_dist, Distribution)
+            all_arr_exponential
+            and not isinstance(self.engine.service_dist, ExponentialDist)
             and self.engine.c == 1
             and math.isinf(self.engine.K)
             and lam_tot > 0
         ):
             theo = TheoreticalModels.solve_mg1_pollaczek_khinchine(lam_tot, self.engine.service_dist)
-            theo_note += "M/G/1 Pollaczek-Khinchine Formula with arbitrary service variance."
+            prio_tag = " (Priority Conservation)" if self.engine.priority_enabled else ""
+            theo_note += f"M/G/1 Pollaczek-Khinchine Formula with arbitrary service variance{prio_tag}."
         else:
-            theo_note += "General G/G/m queue."
+            if self.engine.priority_enabled and not math.isinf(self.engine.K):
+                theo_note += f"Multi-Class Priority Queue with finite per-class buffers (K = {int(self.engine.K)} each; no aggregate single-buffer closed-form formula)."
+            elif not all_arr_exponential:
+                theo_note += "Non-Poisson arrival process (General G/G/m or G/M/m queue; no closed-form formula)."
+            elif not isinstance(self.engine.service_dist, ExponentialDist) and self.engine.c > 1:
+                theo_note += f"Multi-server non-exponential queue M/G/{self.engine.c} (no exact closed-form formula; Kingman/Tijms approximations)."
+            else:
+                theo_note += "General G/G/m queue."
 
         theo_note += (
             f"\n\nLittle's Law Live Verification: L = λ_eff * W\n"
@@ -1634,45 +1677,50 @@ class QueueSimulatorApp(QMainWindow):
             f"Discrepancy |Δ| = |L - λ_eff*W| = {m['littles_error_L']:.5f} (Converges to 0)."
         )
 
+        is_unstable = bool(theo and theo.get('unstable', False))
+        if is_unstable:
+            theo_note += " [UNSTABLE SYSTEM: Traffic demand exceeds capacity (ρ >= 1.0 with K = inf). Backlog and delays diverge to infinity.]"
+
         self.lbl_theory_notes.setText(theo_note)
 
+        def fmt_theo_and_err(sim_val, theo_dict, key):
+            if not theo_dict:
+                return ("N/A", "-")
+            if theo_dict.get('unstable', False):
+                return ("inf (Unstable)", "Divergent")
+            t_val = theo_dict.get(key)
+            if t_val is None:
+                return ("N/A", "-")
+            if math.isinf(t_val) or math.isnan(t_val):
+                return ("inf (Inf. Variance)", "Divergent")
+            return (f"{t_val:.4f}", f"{abs(sim_val - t_val) / max(1e-4, t_val) * 100:.2f}%")
+
+        if is_unstable:
+            theo_u = "1.0000 (Saturated)"
+            err_u = f"{abs(m['rho'] - 1.0) * 100:.2f}%"
+        elif not theo:
+            theo_u = "N/A"
+            err_u = "-"
+        else:
+            t_u = theo.get('rho', 0.0)
+            theo_u = f"{t_u:.4f}"
+            err_u = f"{abs(m['rho'] - t_u) / max(1e-4, t_u) * 100:.2f}%"
+
+        theo_L, err_L = fmt_theo_and_err(m['L'], theo, 'L')
+        theo_Lq, err_Lq = fmt_theo_and_err(m['Lq'], theo, 'Lq')
+        theo_W, err_W = fmt_theo_and_err(m['W'], theo, 'W')
+        theo_Wq, err_Wq = fmt_theo_and_err(m['Wq'], theo, 'Wq')
+
+        p_loss_theo = theo.get('p_loss', 0.0) if theo else 0.0
+        theo_ploss = f"{p_loss_theo*100:.2f}%" if theo else "N/A"
+
         rows = [
-            (
-                "Traffic Intensity ρ",
-                f"{m['rho']:.4f}",
-                f"{theo.get('rho', 0.0):.4f}" if theo else "N/A",
-                f"{abs(m['rho'] - theo.get('rho', m['rho']))/max(1e-4, theo.get('rho', 1.0))*100:.2f}%" if theo else "-",
-            ),
-            (
-                "Avg System Customers L",
-                f"{m['L']:.4f}",
-                f"{theo.get('L', 0.0):.4f}" if theo else "N/A",
-                f"{abs(m['L'] - theo.get('L', m['L']))/max(1e-4, theo.get('L', 1.0))*100:.2f}%" if theo else "-",
-            ),
-            (
-                "Avg Queue Length Lq",
-                f"{m['Lq']:.4f}",
-                f"{theo.get('Lq', 0.0):.4f}" if theo else "N/A",
-                f"{abs(m['Lq'] - theo.get('Lq', m['Lq']))/max(1e-4, theo.get('Lq', 1.0))*100:.2f}%" if theo else "-",
-            ),
-            (
-                "Avg System Time W (s)",
-                f"{m['W']:.4f}",
-                f"{theo.get('W', 0.0):.4f}" if theo else "N/A",
-                f"{abs(m['W'] - theo.get('W', m['W']))/max(1e-4, theo.get('W', 1.0))*100:.2f}%" if theo else "-",
-            ),
-            (
-                "Avg Wait Time Wq (s)",
-                f"{m['Wq']:.4f}",
-                f"{theo.get('Wq', 0.0):.4f}" if theo else "N/A",
-                f"{abs(m['Wq'] - theo.get('Wq', m['Wq']))/max(1e-4, theo.get('Wq', 1.0))*100:.2f}%" if theo else "-",
-            ),
-            (
-                "Loss Probability P_loss",
-                f"{m['p_loss']*100:.2f}%",
-                f"{theo.get('p_loss', 0.0)*100:.2f}%" if theo else "0.0%",
-                "-",
-            ),
+            ("Server Utilization U (Carried)", f"{m['rho']:.4f}", theo_u, err_u),
+            ("Avg System Customers L", f"{m['L']:.4f}", theo_L, err_L),
+            ("Avg Queue Length Lq", f"{m['Lq']:.4f}", theo_Lq, err_Lq),
+            ("Avg System Time W (s)", f"{m['W']:.4f}", theo_W, err_W),
+            ("Avg Wait Time Wq (s)", f"{m['Wq']:.4f}", theo_Wq, err_Wq),
+            ("Loss Probability P_loss", f"{m['p_loss']*100:.2f}%", theo_ploss, "-"),
             ("Little's Law L_diff", f"{m['littles_error_L']:.5f}", "0.00000 (Exact)", "Verified"),
         ]
 

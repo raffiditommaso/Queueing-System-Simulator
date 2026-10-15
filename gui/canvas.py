@@ -167,7 +167,7 @@ class AnimatedCanvas(QWidget):
             painter.drawText(int(arr1_x - 4), int(mid_y + 4), ">")
 
             # In-flight Customer Gliding Tag from emitter into queue
-            if is_arr_pulsing and self.engine.last_arrival_id:
+            if is_arr_pulsing and not last_arr_dropped and self.engine.last_arrival_id:
                 prog = 1.0 - arr_pulse_val
                 cust_x = pipe1_start + prog * (pipe1_end - pipe1_start - 36)
                 cust_rect = QRectF(cust_x, mid_y - 9, 36, 18)
@@ -211,7 +211,7 @@ class AnimatedCanvas(QWidget):
                 painter.drawText(int(arr_px - 4), int(l_cy + 4), ">")
 
                 # In-flight Customer Gliding Tag into this priority lane
-                if is_arr_pulsing and last_arr_prio == p_idx and self.engine.last_arrival_id:
+                if is_arr_pulsing and not last_arr_dropped and last_arr_prio == p_idx and self.engine.last_arrival_id:
                     prog = 1.0 - arr_pulse_val
                     cust_x = pipe1_start + prog * (pipe1_end - pipe1_start - 36)
                     cust_y = mid_y + prog * (l_cy - mid_y) - 9
@@ -578,7 +578,7 @@ class AnimatedCanvas(QWidget):
 
             for idx in range(total_slots_to_show):
                 r = idx // cols
-                c = idx % cols
+                c = (cols - 1) - (idx % cols)
                 cx = start_slots_x + c * (slot_sz_w + slot_margin)
                 cy = start_slots_y + r * (slot_sz_h + slot_margin)
 
@@ -701,7 +701,7 @@ class AnimatedCanvas(QWidget):
                 sy = slot_box_y + (slot_box_h - slot_sz_h) // 2
 
                 for s_idx in range(slots_to_show):
-                    sx = start_sx + s_idx * (slot_sz_w + slot_margin)
+                    sx = start_sx + (slots_to_show - 1 - s_idx) * (slot_sz_w + slot_margin)
                     if s_idx < len(q_custs):
                         cust = q_custs[s_idx]
                         painter.setBrush(QBrush(p_col))
@@ -777,7 +777,7 @@ class AnimatedCanvas(QWidget):
         painter.setPen(QColor("#a6adc8"))
         painter.drawText(int(tray_x + 6), int(tray_y + 13), "Recent Drops:")
 
-        recent = self.engine.recent_drops[-4:]
+        recent = list(self.engine.recent_drops)[-4:]
         for d_idx, d_cust in enumerate(recent):
             row = d_idx // 2
             col = d_idx % 2
@@ -956,8 +956,8 @@ class AnimatedCanvas(QWidget):
         painter.setPen(QColor("#cdd6f4"))
         painter.drawText(text_x, int(sink_y + 49), f"Throughput: {lam_eff:.2f} cust/s")
 
-        if self.engine.completed_customers:
-            w_mean = sum(c.system_time for c in self.engine.completed_customers) / len(self.engine.completed_customers)
+        if self.engine.customers_served_total > 0:
+            w_mean = self.engine.total_system_time / self.engine.customers_served_total
         else:
             w_mean = 0.0
         painter.setFont(QFont("Segoe UI", 8))
