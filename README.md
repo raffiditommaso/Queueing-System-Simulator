@@ -1,11 +1,11 @@
-# Advanced Queueing System Simulator
+# Queueing System Simulator
 
 [![Python](https://img.shields.io/badge/Python-3.9%2B-blue.svg)](https://www.python.org/)
 [![GUI](https://img.shields.io/badge/GUI-PyQt6-green.svg)](https://riverbankcomputing.com/software/pyqt/)
 [![Plotting](https://img.shields.io/badge/Charts-Matplotlib-orange.svg)](https://matplotlib.org/)
 [![License](https://img.shields.io/badge/License-Academic%20%2F%20MIT-lightgrey.svg)]()
 
-An interactive, high-fidelity **Discrete-Event Simulation (DES)** and pedagogical queueing theory workstation designed for Master's degree courses in **Network Design**, **Teletraffic Engineering**, and **Computer Systems Performance Modeling**.
+An interactive **Discrete-Event Simulation (DES)** and pedagogical queueing theory workstation designed for Master's degree courses in **Network Design**, **Teletraffic Engineering**, and **Computer Systems Performance Modeling**.
 
 The platform combines an event-driven stochastic simulation engine, a real-time 2D animated vector canvas, live birth-death Markov chain visualization, dynamic Matplotlib analytics, and an integrated **15-chapter publication-quality educational theory library** with Computer Modern $\mathrm{\LaTeX}$ formulas.
 
