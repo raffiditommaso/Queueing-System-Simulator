@@ -24,11 +24,15 @@ class Distribution:
 
     def second_moment(self) -> float:
         m = self.mean()
+        if math.isinf(m):
+            return float('inf')
         return self.variance() + m * m
 
     def cv(self) -> float:
         """Coefficient of variation: sigma / mean"""
         m = self.mean()
+        if math.isinf(m) or m <= 0:
+            return 1.0 if self.name == 'Exponential' else 0.0
         return math.sqrt(max(0.0, self.variance())) / m if m > 0 else 0.0
 
     def kendall_symbol(self) -> str:
@@ -42,15 +46,21 @@ class Distribution:
 class ExponentialDist(Distribution):
     def __init__(self, rate: float = 1.0):
         super().__init__('Exponential', {'rate': float(rate)})
-        self.rate = max(1e-6, float(rate))
+        self.rate = max(0.0, float(rate))
 
     def sample(self) -> float:
+        if self.rate <= 0.0:
+            return float('inf')
         return random.expovariate(self.rate)
 
     def mean(self) -> float:
+        if self.rate <= 0.0:
+            return float('inf')
         return 1.0 / self.rate
 
     def variance(self) -> float:
+        if self.rate <= 0.0:
+            return float('inf')
         return 1.0 / (self.rate * self.rate)
 
     def kendall_symbol(self) -> str:
@@ -101,19 +111,23 @@ class ErlangDist(Distribution):
     """Erlang-k distribution: sum of k independent exponential variables."""
     def __init__(self, k: int = 2, mean: float = 1.0):
         k_val = max(1, int(k))
-        m_val = max(1e-6, float(mean))
+        m_val = float(mean)
         super().__init__('Erlang', {'k': k_val, 'mean': m_val})
         self.k = k_val
         self.mean_val = m_val
-        self.stage_rate = self.k / self.mean_val
+        self.stage_rate = (self.k / self.mean_val) if (not math.isinf(self.mean_val) and self.mean_val > 0) else 0.0
 
     def sample(self) -> float:
+        if self.stage_rate <= 0.0 or math.isinf(self.mean_val):
+            return float('inf')
         return sum(random.expovariate(self.stage_rate) for _ in range(self.k))
 
     def mean(self) -> float:
         return self.mean_val
 
     def variance(self) -> float:
+        if math.isinf(self.mean_val):
+            return float('inf')
         return (self.mean_val ** 2) / self.k
 
     def kendall_symbol(self) -> str:

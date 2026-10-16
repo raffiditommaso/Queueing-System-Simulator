@@ -281,26 +281,34 @@ class QueueSimulatorApp(QMainWindow):
         arch_layout.setSpacing(6)
 
         arch_layout.addWidget(QLabel("Servers (m):"), 0, 0)
-        self.stepper_servers = NumberStepper(min_val=1, max_val=20, default_val=self.engine.c)
+        default_srv = 1 if math.isinf(self.engine.c) else self.engine.c
+        self.stepper_servers = NumberStepper(min_val=1, max_val=1000, default_val=default_srv)
         self.stepper_servers.valueChanged.connect(self._apply_config)
+        self.stepper_servers.setEnabled(not math.isinf(self.engine.c))
         arch_layout.addWidget(self.stepper_servers, 0, 1, Qt.AlignmentFlag.AlignRight)
 
-        arch_layout.addWidget(QLabel("Queue Buffer (K):"), 1, 0)
+        self.chk_inf_servers = QCheckBox("Infinite Servers (m = inf)")
+        self.chk_inf_servers.setChecked(math.isinf(self.engine.c))
+        self.chk_inf_servers.toggled.connect(self._toggle_inf_servers)
+        arch_layout.addWidget(self.chk_inf_servers, 1, 0, 1, 2)
+
+        arch_layout.addWidget(QLabel("Queue Buffer (K):"), 2, 0)
         self.stepper_queue = NumberStepper(
-            min_val=0, max_val=500, default_val=12 if not math.isinf(self.engine.K) else 50
+            min_val=0, max_val=100000, default_val=12 if not math.isinf(self.engine.K) else 50
         )
         self.stepper_queue.valueChanged.connect(self._apply_config)
-        arch_layout.addWidget(self.stepper_queue, 1, 1, Qt.AlignmentFlag.AlignRight)
+        self.stepper_queue.setEnabled(not math.isinf(self.engine.K))
+        arch_layout.addWidget(self.stepper_queue, 2, 1, Qt.AlignmentFlag.AlignRight)
 
         self.chk_inf_queue = QCheckBox("Infinite Capacity (K = inf)")
         self.chk_inf_queue.setChecked(math.isinf(self.engine.K))
         self.chk_inf_queue.toggled.connect(self._toggle_inf_queue)
-        arch_layout.addWidget(self.chk_inf_queue, 2, 0, 1, 2)
+        arch_layout.addWidget(self.chk_inf_queue, 3, 0, 1, 2)
 
         layout.addWidget(grp_arch)
 
         # Helper to create a slider + spinbox parameter control
-        def make_param_control(label_title, min_v, max_v, step, def_v, is_int=False):
+        def make_param_control(label_title, min_v, max_v, step, def_v, is_int=False, spin_max=None):
             w_row = QWidget()
             vl = QVBoxLayout(w_row)
             vl.setContentsMargins(0, 1, 0, 1)
@@ -313,17 +321,20 @@ class QueueSimulatorApp(QMainWindow):
             hl.setContentsMargins(0, 0, 0, 0)
             hl.setSpacing(6)
 
+            if spin_max is None:
+                spin_max = max(max_v, 1000.0) if not is_int else max(max_v, 1000)
+
             if is_int:
                 slider = NoWheelSlider(Qt.Orientation.Horizontal)
                 slider.setRange(int(min_v), int(max_v))
                 slider.setValue(int(def_v))
 
                 spin = NoWheelSpinBox()
-                spin.setRange(int(min_v), int(max_v))
+                spin.setRange(int(min_v), int(spin_max))
                 spin.setValue(int(def_v))
                 spin.setAlignment(Qt.AlignmentFlag.AlignCenter)
                 spin.setButtonSymbols(QAbstractSpinBox.ButtonSymbols.NoButtons)
-                spin.setFixedWidth(52)
+                spin.setFixedWidth(64)
             else:
                 scale = 100
                 slider = NoWheelSlider(Qt.Orientation.Horizontal)
@@ -331,12 +342,12 @@ class QueueSimulatorApp(QMainWindow):
                 slider.setValue(int(round(def_v * scale)))
 
                 spin = NoWheelDoubleSpinBox()
-                spin.setRange(float(min_v), float(max_v))
+                spin.setRange(float(min_v), float(spin_max))
                 spin.setSingleStep(float(step))
                 spin.setValue(float(def_v))
                 spin.setAlignment(Qt.AlignmentFlag.AlignCenter)
                 spin.setButtonSymbols(QAbstractSpinBox.ButtonSymbols.NoButtons)
-                spin.setFixedWidth(52)
+                spin.setFixedWidth(64)
 
             hl.addWidget(slider, stretch=1)
             hl.addWidget(spin)
@@ -355,9 +366,10 @@ class QueueSimulatorApp(QMainWindow):
                 on_change_callback()
 
             def sp_changed(v):
-                sl_val = int(v) if is_int else int(round(v * scale))
+                raw_sl = int(v) if is_int else int(round(v * scale))
+                clamped_sl = max(slider.minimum(), min(slider.maximum(), raw_sl))
                 slider.blockSignals(True)
-                slider.setValue(sl_val)
+                slider.setValue(clamped_sl)
                 slider.blockSignals(False)
                 lbl.setText(fmt_str.format(v))
                 on_change_callback()
@@ -436,27 +448,30 @@ class QueueSimulatorApp(QMainWindow):
             self.spin_arr_uni_a.blockSignals(False)
             self.lbl_arr_uni_a.setText(f"Parameter a (Min Interval, s): {a_v:.2f}")
             if self.spin_arr_uni_b.value() <= a_v:
-                new_b = min(10.0, round(a_v + 0.05, 2))
+                new_b = min(self.spin_arr_uni_b.maximum(), round(a_v + 0.05, 2))
                 self.spin_arr_uni_b.blockSignals(True)
                 self.slider_arr_uni_b.blockSignals(True)
                 self.spin_arr_uni_b.setValue(new_b)
-                self.slider_arr_uni_b.setValue(int(round(new_b * 100)))
+                clamped_b = max(self.slider_arr_uni_b.minimum(), min(self.slider_arr_uni_b.maximum(), int(round(new_b * 100))))
+                self.slider_arr_uni_b.setValue(clamped_b)
                 self.spin_arr_uni_b.blockSignals(False)
                 self.slider_arr_uni_b.blockSignals(False)
                 self.lbl_arr_uni_b.setText(f"Parameter b (Max Interval, s): {new_b:.2f}")
             self._apply_config()
 
         def on_arr_uni_a_sp(a_v):
+            clamped_a = max(self.slider_arr_uni_a.minimum(), min(self.slider_arr_uni_a.maximum(), int(round(a_v * 100))))
             self.slider_arr_uni_a.blockSignals(True)
-            self.slider_arr_uni_a.setValue(int(round(a_v * 100)))
+            self.slider_arr_uni_a.setValue(clamped_a)
             self.slider_arr_uni_a.blockSignals(False)
             self.lbl_arr_uni_a.setText(f"Parameter a (Min Interval, s): {a_v:.2f}")
             if self.spin_arr_uni_b.value() <= a_v:
-                new_b = min(10.0, round(a_v + 0.05, 2))
+                new_b = min(self.spin_arr_uni_b.maximum(), round(a_v + 0.05, 2))
                 self.spin_arr_uni_b.blockSignals(True)
                 self.slider_arr_uni_b.blockSignals(True)
                 self.spin_arr_uni_b.setValue(new_b)
-                self.slider_arr_uni_b.setValue(int(round(new_b * 100)))
+                clamped_b = max(self.slider_arr_uni_b.minimum(), min(self.slider_arr_uni_b.maximum(), int(round(new_b * 100))))
+                self.slider_arr_uni_b.setValue(clamped_b)
                 self.spin_arr_uni_b.blockSignals(False)
                 self.slider_arr_uni_b.blockSignals(False)
                 self.lbl_arr_uni_b.setText(f"Parameter b (Max Interval, s): {new_b:.2f}")
@@ -473,15 +488,17 @@ class QueueSimulatorApp(QMainWindow):
                 self.spin_arr_uni_a.blockSignals(True)
                 self.slider_arr_uni_a.blockSignals(True)
                 self.spin_arr_uni_a.setValue(new_a)
-                self.slider_arr_uni_a.setValue(int(round(new_a * 100)))
+                clamped_a = max(self.slider_arr_uni_a.minimum(), min(self.slider_arr_uni_a.maximum(), int(round(new_a * 100))))
+                self.slider_arr_uni_a.setValue(clamped_a)
                 self.spin_arr_uni_a.blockSignals(False)
                 self.slider_arr_uni_a.blockSignals(False)
                 self.lbl_arr_uni_a.setText(f"Parameter a (Min Interval, s): {new_a:.2f}")
             self._apply_config()
 
         def on_arr_uni_b_sp(b_v):
+            clamped_b = max(self.slider_arr_uni_b.minimum(), min(self.slider_arr_uni_b.maximum(), int(round(b_v * 100))))
             self.slider_arr_uni_b.blockSignals(True)
-            self.slider_arr_uni_b.setValue(int(round(b_v * 100)))
+            self.slider_arr_uni_b.setValue(clamped_b)
             self.slider_arr_uni_b.blockSignals(False)
             self.lbl_arr_uni_b.setText(f"Parameter b (Max Interval, s): {b_v:.2f}")
             if self.spin_arr_uni_a.value() >= b_v:
@@ -489,7 +506,8 @@ class QueueSimulatorApp(QMainWindow):
                 self.spin_arr_uni_a.blockSignals(True)
                 self.slider_arr_uni_a.blockSignals(True)
                 self.spin_arr_uni_a.setValue(new_a)
-                self.slider_arr_uni_a.setValue(int(round(new_a * 100)))
+                clamped_a = max(self.slider_arr_uni_a.minimum(), min(self.slider_arr_uni_a.maximum(), int(round(new_a * 100))))
+                self.slider_arr_uni_a.setValue(clamped_a)
                 self.spin_arr_uni_a.blockSignals(False)
                 self.slider_arr_uni_a.blockSignals(False)
                 self.lbl_arr_uni_a.setText(f"Parameter a (Min Interval, s): {new_a:.2f}")
@@ -507,7 +525,7 @@ class QueueSimulatorApp(QMainWindow):
         p3_arr_lay.setContentsMargins(0, 0, 0, 0)
         p3_arr_lay.setSpacing(4)
         row_k, self.lbl_arr_erl_k, self.slider_arr_erl_k, self.spin_arr_erl_k = make_param_control(
-            "Phases k", 1, 10, 1, 2, is_int=True
+            "Phases k", 1, 10, 1, 2, is_int=True, spin_max=50
         )
         connect_pair(
             self.slider_arr_erl_k, self.spin_arr_erl_k, self.lbl_arr_erl_k,
@@ -530,7 +548,7 @@ class QueueSimulatorApp(QMainWindow):
         p4_arr_lay.setContentsMargins(0, 0, 0, 0)
         p4_arr_lay.setSpacing(4)
         row_p1, self.lbl_arr_hyper_p1, self.slider_arr_hyper_p1, self.spin_arr_hyper_p1 = make_param_control(
-            "Branch Prob p₁", 0.05, 0.95, 0.05, 0.40
+            "Branch Prob p₁", 0.05, 0.95, 0.05, 0.40, spin_max=0.95
         )
         connect_pair(
             self.slider_arr_hyper_p1, self.spin_arr_hyper_p1, self.lbl_arr_hyper_p1,
@@ -561,7 +579,7 @@ class QueueSimulatorApp(QMainWindow):
         p5_arr_lay.setContentsMargins(0, 0, 0, 0)
         p5_arr_lay.setSpacing(4)
         row_alpha, self.lbl_arr_pareto_alpha, self.slider_arr_pareto_alpha, self.spin_arr_pareto_alpha = make_param_control(
-            "Shape Parameter α", 1.10, 5.0, 0.05, 2.50
+            "Shape Parameter α", 1.10, 5.0, 0.05, 2.50, spin_max=50.0
         )
         connect_pair(
             self.slider_arr_pareto_alpha, self.spin_arr_pareto_alpha, self.lbl_arr_pareto_alpha,
@@ -618,7 +636,7 @@ class QueueSimulatorApp(QMainWindow):
 
         # Page 0: Exponential
         sp0_serv, self.lbl_serv_rate, self.slider_serv_rate, self.spin_serv_rate = make_param_control(
-            "Service Rate μ (cust/s)", 0.10, 10.0, 0.05, 1.00
+            "Service Rate μ (cust/s)", 0.00, 10.0, 0.05, 1.00
         )
         connect_pair(
             self.slider_serv_rate, self.spin_serv_rate, self.lbl_serv_rate,
@@ -657,27 +675,30 @@ class QueueSimulatorApp(QMainWindow):
             self.spin_serv_uni_a.blockSignals(False)
             self.lbl_serv_uni_a.setText(f"Parameter a (Min Service, s): {a_v:.2f}")
             if self.spin_serv_uni_b.value() <= a_v:
-                new_b = min(10.0, round(a_v + 0.05, 2))
+                new_b = min(self.spin_serv_uni_b.maximum(), round(a_v + 0.05, 2))
                 self.spin_serv_uni_b.blockSignals(True)
                 self.slider_serv_uni_b.blockSignals(True)
                 self.spin_serv_uni_b.setValue(new_b)
-                self.slider_serv_uni_b.setValue(int(round(new_b * 100)))
+                clamped_b = max(self.slider_serv_uni_b.minimum(), min(self.slider_serv_uni_b.maximum(), int(round(new_b * 100))))
+                self.slider_serv_uni_b.setValue(clamped_b)
                 self.spin_serv_uni_b.blockSignals(False)
                 self.slider_serv_uni_b.blockSignals(False)
                 self.lbl_serv_uni_b.setText(f"Parameter b (Max Service, s): {new_b:.2f}")
             self._apply_config()
 
         def on_serv_uni_a_sp(a_v):
+            clamped_a = max(self.slider_serv_uni_a.minimum(), min(self.slider_serv_uni_a.maximum(), int(round(a_v * 100))))
             self.slider_serv_uni_a.blockSignals(True)
-            self.slider_serv_uni_a.setValue(int(round(a_v * 100)))
+            self.slider_serv_uni_a.setValue(clamped_a)
             self.slider_serv_uni_a.blockSignals(False)
             self.lbl_serv_uni_a.setText(f"Parameter a (Min Service, s): {a_v:.2f}")
             if self.spin_serv_uni_b.value() <= a_v:
-                new_b = min(10.0, round(a_v + 0.05, 2))
+                new_b = min(self.spin_serv_uni_b.maximum(), round(a_v + 0.05, 2))
                 self.spin_serv_uni_b.blockSignals(True)
                 self.slider_serv_uni_b.blockSignals(True)
                 self.spin_serv_uni_b.setValue(new_b)
-                self.slider_serv_uni_b.setValue(int(round(new_b * 100)))
+                clamped_b = max(self.slider_serv_uni_b.minimum(), min(self.slider_serv_uni_b.maximum(), int(round(new_b * 100))))
+                self.slider_serv_uni_b.setValue(clamped_b)
                 self.spin_serv_uni_b.blockSignals(False)
                 self.slider_serv_uni_b.blockSignals(False)
                 self.lbl_serv_uni_b.setText(f"Parameter b (Max Service, s): {new_b:.2f}")
@@ -694,15 +715,17 @@ class QueueSimulatorApp(QMainWindow):
                 self.spin_serv_uni_a.blockSignals(True)
                 self.slider_serv_uni_a.blockSignals(True)
                 self.spin_serv_uni_a.setValue(new_a)
-                self.slider_serv_uni_a.setValue(int(round(new_a * 100)))
+                clamped_a = max(self.slider_serv_uni_a.minimum(), min(self.slider_serv_uni_a.maximum(), int(round(new_a * 100))))
+                self.slider_serv_uni_a.setValue(clamped_a)
                 self.spin_serv_uni_a.blockSignals(False)
                 self.slider_serv_uni_a.blockSignals(False)
                 self.lbl_serv_uni_a.setText(f"Parameter a (Min Service, s): {new_a:.2f}")
             self._apply_config()
 
         def on_serv_uni_b_sp(b_v):
+            clamped_b = max(self.slider_serv_uni_b.minimum(), min(self.slider_serv_uni_b.maximum(), int(round(b_v * 100))))
             self.slider_serv_uni_b.blockSignals(True)
-            self.slider_serv_uni_b.setValue(int(round(b_v * 100)))
+            self.slider_serv_uni_b.setValue(clamped_b)
             self.slider_serv_uni_b.blockSignals(False)
             self.lbl_serv_uni_b.setText(f"Parameter b (Max Service, s): {b_v:.2f}")
             if self.spin_serv_uni_a.value() >= b_v:
@@ -710,7 +733,8 @@ class QueueSimulatorApp(QMainWindow):
                 self.spin_serv_uni_a.blockSignals(True)
                 self.slider_serv_uni_a.blockSignals(True)
                 self.spin_serv_uni_a.setValue(new_a)
-                self.slider_serv_uni_a.setValue(int(round(new_a * 100)))
+                clamped_a = max(self.slider_serv_uni_a.minimum(), min(self.slider_serv_uni_a.maximum(), int(round(new_a * 100))))
+                self.slider_serv_uni_a.setValue(clamped_a)
                 self.spin_serv_uni_a.blockSignals(False)
                 self.slider_serv_uni_a.blockSignals(False)
                 self.lbl_serv_uni_a.setText(f"Parameter a (Min Service, s): {new_a:.2f}")
@@ -728,14 +752,14 @@ class QueueSimulatorApp(QMainWindow):
         sp3_serv_lay.setContentsMargins(0, 0, 0, 0)
         sp3_serv_lay.setSpacing(4)
         srow_k, self.lbl_serv_erl_k, self.slider_serv_erl_k, self.spin_serv_erl_k = make_param_control(
-            "Phases k", 1, 10, 1, 2, is_int=True
+            "Phases k", 1, 10, 1, 2, is_int=True, spin_max=50
         )
         connect_pair(
             self.slider_serv_erl_k, self.spin_serv_erl_k, self.lbl_serv_erl_k,
             "Phases k: {}", self._apply_config, is_int=True,
         )
         srow_erl_r, self.lbl_serv_erl_rate, self.slider_serv_erl_rate, self.spin_serv_erl_rate = make_param_control(
-            "Overall Service Rate μ (cust/s)", 0.10, 10.0, 0.05, 1.00
+            "Overall Service Rate μ (cust/s)", 0.00, 10.0, 0.05, 1.00
         )
         connect_pair(
             self.slider_serv_erl_rate, self.spin_serv_erl_rate, self.lbl_serv_erl_rate,
@@ -751,7 +775,7 @@ class QueueSimulatorApp(QMainWindow):
         sp4_serv_lay.setContentsMargins(0, 0, 0, 0)
         sp4_serv_lay.setSpacing(4)
         srow_p1, self.lbl_serv_hyper_p1, self.slider_serv_hyper_p1, self.spin_serv_hyper_p1 = make_param_control(
-            "Branch Prob p₁", 0.05, 0.95, 0.05, 0.40
+            "Branch Prob p₁", 0.05, 0.95, 0.05, 0.40, spin_max=0.95
         )
         connect_pair(
             self.slider_serv_hyper_p1, self.spin_serv_hyper_p1, self.lbl_serv_hyper_p1,
@@ -782,7 +806,7 @@ class QueueSimulatorApp(QMainWindow):
         sp5_serv_lay.setContentsMargins(0, 0, 0, 0)
         sp5_serv_lay.setSpacing(4)
         srow_alpha, self.lbl_serv_pareto_alpha, self.slider_serv_pareto_alpha, self.spin_serv_pareto_alpha = make_param_control(
-            "Shape Parameter α", 1.10, 5.0, 0.05, 2.50
+            "Shape Parameter α", 1.10, 5.0, 0.05, 2.50, spin_max=50.0
         )
         connect_pair(
             self.slider_serv_pareto_alpha, self.spin_serv_pareto_alpha, self.lbl_serv_pareto_alpha,
@@ -1033,8 +1057,9 @@ class QueueSimulatorApp(QMainWindow):
         self._apply_config()
 
     def _on_arr_spin_changed(self, val):
+        sl_val = max(self.slider_arr_rate.minimum(), min(self.slider_arr_rate.maximum(), int(val * 100)))
         self.slider_arr_rate.blockSignals(True)
-        self.slider_arr_rate.setValue(int(val * 100))
+        self.slider_arr_rate.setValue(sl_val)
         self.slider_arr_rate.blockSignals(False)
         self.lbl_arr_rate.setText(f"Arrival Rate λ (cust/s): {val:.2f}")
         self._apply_config()
@@ -1048,8 +1073,9 @@ class QueueSimulatorApp(QMainWindow):
         self._apply_config()
 
     def _on_serv_spin_changed(self, val):
+        sl_val = max(self.slider_serv_rate.minimum(), min(self.slider_serv_rate.maximum(), int(val * 100)))
         self.slider_serv_rate.blockSignals(True)
-        self.slider_serv_rate.setValue(int(val * 100))
+        self.slider_serv_rate.setValue(sl_val)
         self.slider_serv_rate.blockSignals(False)
         self.lbl_serv_rate.setText(f"Service Rate μ (cust/s): {val:.2f}")
         self._apply_config()
@@ -1181,6 +1207,10 @@ class QueueSimulatorApp(QMainWindow):
         self._set_playback_state("RUN")
         self._update_all_views()
 
+    def _toggle_inf_servers(self, checked):
+        self.stepper_servers.setEnabled(not checked)
+        self._apply_config()
+
     def _toggle_inf_queue(self, checked):
         self.stepper_queue.setEnabled(not checked)
         self._apply_config()
@@ -1212,16 +1242,20 @@ class QueueSimulatorApp(QMainWindow):
         rho: float = None,
         lam: float = None,
         mu: float = None,
-        m: int = 1,
+        m: float = 1,
     ):
         if self.tab_theory_doc is None:
             self.tab_theory_doc = TheoryPdfTab(self.engine, parent=self)
             self.tab_theory_doc.closeRequested.connect(self.close_theory_tab)
 
         if rho is None or lam is None or mu is None:
-            lam = sum(1.0 / d.mean() for d in self.engine.arrival_dists.values() if d is not None)
-            mu = 1.0 / self.engine.service_dist.mean()
-            rho = lam / max(1e-6, self.engine.c * mu)
+            lam = sum(1.0 / max(1e-6, d.mean()) for d in self.engine.arrival_dists.values() if d is not None)
+            mean_s = self.engine.service_dist.mean()
+            mu = (1.0 / mean_s) if (not math.isinf(mean_s) and mean_s > 0) else 0.0
+            if math.isinf(self.engine.c):
+                rho = 0.0 if mu > 0 else float('inf')
+            else:
+                rho = lam / max(1e-6, self.engine.c * mu)
             m = self.engine.c
 
         short_title = self.tab_theory_doc.get_short_title(topic_index)
@@ -1323,7 +1357,7 @@ class QueueSimulatorApp(QMainWindow):
         elif serv_idx == 3:
             k_val = self.spin_serv_erl_k.value()
             r_val = self.spin_serv_erl_rate.value()
-            serv_dist = ErlangDist(k=k_val, mean=1.0 / max(1e-6, r_val))
+            serv_dist = ErlangDist(k=k_val, mean=(1.0 / r_val) if r_val > 0 else float('inf'))
         elif serv_idx == 4:
             p1_val = self.spin_serv_hyper_p1.value()
             r1_val = self.spin_serv_hyper_r1.value()
@@ -1336,17 +1370,22 @@ class QueueSimulatorApp(QMainWindow):
         else:
             serv_dist = ExponentialDist(rate=1.0)
 
-        mu = 1.0 / max(1e-6, serv_dist.mean())
-        self.lbl_serv_moments.setText(
-            f"Mean Service: E[S] = {serv_dist.mean():.2f}s | Var[S] = {serv_dist.variance():.3f}"
-        )
+        mean_s = serv_dist.mean()
+        mu = (1.0 / mean_s) if (not math.isinf(mean_s) and mean_s > 0) else 0.0
+        if math.isinf(mean_s):
+            self.lbl_serv_moments.setText("Mean Service: E[S] = ∞ | Var[S] = ∞ (Rate μ = 0.00 cust/s)")
+        else:
+            self.lbl_serv_moments.setText(
+                f"Mean Service: E[S] = {mean_s:.2f}s | Var[S] = {serv_dist.variance():.3f}"
+            )
 
         priority_active = self.chk_priority.isChecked()
         arr_dists = {}
 
         if not priority_active:
             arr_dists[-1] = s_dist
-            lam = 1.0 / max(1e-6, s_dist.mean())
+            mean_a = s_dist.mean()
+            lam = (1.0 / mean_a) if (not math.isinf(mean_a) and mean_a > 0) else 0.0
             self.lbl_arr_moments.setText(
                 f"Mean Interarrival: E[T] = {s_dist.mean():.2f}s | Var[T] = {s_dist.variance():.3f}"
             )
@@ -1364,26 +1403,42 @@ class QueueSimulatorApp(QMainWindow):
             lam_total = r0 + r1 + r2
             self.lbl_arr_moments.setText(f"Total Priority Arrival: Σλ = {lam_total:.2f} cust/s")
 
-        c_servers = self.stepper_servers.value()
+        c_servers = math.inf if self.chk_inf_servers.isChecked() else self.stepper_servers.value()
         q_cap = math.inf if self.chk_inf_queue.isChecked() else self.stepper_queue.value()
 
-        a0_per_server = lam_total / (c_servers * mu)
-
-        if a0_per_server < 0.85:
-            self.lbl_stab_status.setText(f"Stable System (A₀/m = {a0_per_server:.2f} < 1.0)")
-            self.lbl_stab_status.setStyleSheet("font-size: 11px; font-weight: bold; color: #a6e3a1;")
-            self.btn_why.setVisible(False)
-            self.btn_warning_why.setVisible(False)
-        elif a0_per_server < 1.0:
-            self.lbl_stab_status.setText(f"High Congestion (A₀/m = {a0_per_server:.2f})")
-            self.lbl_stab_status.setStyleSheet("font-size: 11px; font-weight: bold; color: #f9e2af;")
-            self.btn_why.setVisible(False)
-            self.btn_warning_why.setVisible(False)
-        else:
-            self.lbl_stab_status.setText(f"Warning: Overload / Unstable (A₀/m = {a0_per_server:.2f} ≥ 1.0)")
+        if math.isinf(c_servers):
+            if mu > 0:
+                self.lbl_stab_status.setText("Stable System (Ample Servers m = ∞, A₀/m = 0)")
+                self.lbl_stab_status.setStyleSheet("font-size: 11px; font-weight: bold; color: #a6e3a1;")
+                self.btn_why.setVisible(False)
+                self.btn_warning_why.setVisible(False)
+            else:
+                self.lbl_stab_status.setText("Frozen System (Zero Service Rate μ = 0 cust/s)")
+                self.lbl_stab_status.setStyleSheet("font-size: 11px; font-weight: bold; color: #f38ba8;")
+                self.btn_why.setVisible(True)
+                self.btn_warning_why.setVisible(True)
+        elif mu <= 0:
+            self.lbl_stab_status.setText("Frozen System (Zero Service Rate μ = 0 cust/s)")
             self.lbl_stab_status.setStyleSheet("font-size: 11px; font-weight: bold; color: #f38ba8;")
             self.btn_why.setVisible(True)
             self.btn_warning_why.setVisible(True)
+        else:
+            a0_per_server = lam_total / (c_servers * mu)
+            if a0_per_server < 0.85:
+                self.lbl_stab_status.setText(f"Stable System (A₀/m = {a0_per_server:.2f} < 1.0)")
+                self.lbl_stab_status.setStyleSheet("font-size: 11px; font-weight: bold; color: #a6e3a1;")
+                self.btn_why.setVisible(False)
+                self.btn_warning_why.setVisible(False)
+            elif a0_per_server < 1.0:
+                self.lbl_stab_status.setText(f"High Congestion (A₀/m = {a0_per_server:.2f})")
+                self.lbl_stab_status.setStyleSheet("font-size: 11px; font-weight: bold; color: #f9e2af;")
+                self.btn_why.setVisible(False)
+                self.btn_warning_why.setVisible(False)
+            else:
+                self.lbl_stab_status.setText(f"Warning: Overload / Unstable (A₀/m = {a0_per_server:.2f} ≥ 1.0)")
+                self.lbl_stab_status.setStyleSheet("font-size: 11px; font-weight: bold; color: #f38ba8;")
+                self.btn_why.setVisible(True)
+                self.btn_warning_why.setVisible(True)
 
         if self.engine.priority_enabled != priority_active:
             self.engine.priority_enabled = priority_active
@@ -1404,31 +1459,39 @@ class QueueSimulatorApp(QMainWindow):
         self.engine._accumulate_time(self.engine.current_time)
         self.engine.c = c_servers
         self.engine.K = q_cap
-        self.engine.service_dist = serv_dist
+        self.engine.sync_service_dist(serv_dist)
         self.engine.sync_arrival_streams(arr_dists)
 
-        while len(self.engine.servers) < c_servers:
-            self.engine.servers.append(Server(id=len(self.engine.servers)))
-        while len(self.engine.servers) > c_servers:
-            popped_srv = self.engine.servers.pop()
-            self.engine.retired_busy_time += popped_srv.total_busy_time
-            if popped_srv.busy_start_time is not None:
-                self.engine.retired_busy_time += (self.engine.current_time - popped_srv.busy_start_time)
+        if math.isinf(c_servers):
+            while len(self.engine.servers) < 5:
+                self.engine.servers.append(Server(id=len(self.engine.servers)))
+            while len(self.engine.servers) > 5 and not self.engine.servers[-1].is_busy:
+                popped_srv = self.engine.servers.pop()
+                self.engine.retired_busy_time += popped_srv.total_busy_time
+        else:
+            c_int = int(c_servers)
+            while len(self.engine.servers) < c_int:
+                self.engine.servers.append(Server(id=len(self.engine.servers)))
+            while len(self.engine.servers) > c_int:
+                popped_srv = self.engine.servers.pop()
+                self.engine.retired_busy_time += popped_srv.total_busy_time
+                if popped_srv.busy_start_time is not None:
+                    self.engine.retired_busy_time += (self.engine.current_time - popped_srv.busy_start_time)
 
-            if popped_srv.current_customer:
-                cust = popped_srv.current_customer
-                if cust.service_start_time is not None:
-                    cust.arrival_time += (self.engine.current_time - cust.service_start_time)
-                    cust.service_start_time = None
+                if popped_srv.current_customer:
+                    cust = popped_srv.current_customer
+                    if cust.service_start_time is not None:
+                        cust.arrival_time += (self.engine.current_time - cust.service_start_time)
+                        cust.service_start_time = None
 
-                p_key = cust.priority if self.engine.priority_enabled else -1
-                self.engine.queues[p_key].appendleft(cust)
-                self.engine.event_heap = [
-                    ev for ev in self.engine.event_heap
-                    if not (ev[2] == 'departure' and ev[3] == popped_srv.id)
-                ]
-                import heapq
-                heapq.heapify(self.engine.event_heap)
+                    p_key = cust.priority if self.engine.priority_enabled else -1
+                    self.engine.queues[p_key].appendleft(cust)
+                    self.engine.event_heap = [
+                        ev for ev in self.engine.event_heap
+                        if not (ev[2] == 'departure' and ev[3] == popped_srv.id)
+                    ]
+                    import heapq
+                    heapq.heapify(self.engine.event_heap)
 
         # Immediately dispatch any newly available idle servers to waiting customers in strict priority order
         self.engine.assign_idle_servers()
@@ -1456,7 +1519,10 @@ class QueueSimulatorApp(QMainWindow):
         self.lbl_kendall.setText(f"[ {kendall} ]")
         if self.lbl_sim_time is not None:
             self.lbl_sim_time.setText(f"Clock: {m['T']:.1f}s")
-        self.lbl_rho_header.setText(f"Avg Server Utilization ρ: {m['rho']:.2f}")
+        if math.isinf(self.engine.c):
+            self.lbl_rho_header.setText("Avg Server Utilization ρ: 0.00 (m = ∞)")
+        else:
+            self.lbl_rho_header.setText(f"Avg Server Utilization ρ: {m['rho']:.2f}")
 
         self.val_n.setText(f"{self.engine.total_in_system} (Q: {self.engine.total_in_queue})")
         self.val_served.setText(f"{m['served']} / {m['arrived']}")
@@ -1542,11 +1608,11 @@ class QueueSimulatorApp(QMainWindow):
 
         # Always display a full, well-defined range of states
         max_observed = max(list(pn.keys()) + [0])
-        if math.isinf(K):
+        if math.isinf(K) or math.isinf(c):
             max_state_to_show = max(10, min(25, max_observed + 2))
         else:
             eff_K = 3 * int(K) if self.engine.priority_enabled else int(K)
-            max_state_to_show = min(25, max(c + eff_K, max_observed))
+            max_state_to_show = min(25, max(int(c) + eff_K, max_observed))
 
         display_states = list(range(max_state_to_show + 1))
         sim_probs = [pn.get(s, 0.0) for s in display_states]
@@ -1555,8 +1621,9 @@ class QueueSimulatorApp(QMainWindow):
         ax2.bar(display_states, sim_probs, color="#a6e3a1", alpha=0.7, label="Simulated P(k)")
 
         # Compute theoretical PMF
-        lam_equiv = sum(1.0 / d.mean() for d in self.engine.arrival_dists.values() if d is not None)
-        mu_equiv = 1.0 / self.engine.service_dist.mean()
+        lam_equiv = sum(1.0 / max(1e-6, d.mean()) for d in self.engine.arrival_dists.values() if d is not None)
+        mean_serv = self.engine.service_dist.mean()
+        mu_equiv = (1.0 / mean_serv) if (not math.isinf(mean_serv) and mean_serv > 0) else 0.0
 
         is_pure_exponential = (
             isinstance(self.engine.service_dist, ExponentialDist)
@@ -1564,7 +1631,7 @@ class QueueSimulatorApp(QMainWindow):
         )
 
         if lam_equiv > 0 and mu_equiv > 0:
-            if math.isinf(K):
+            if math.isinf(c) or math.isinf(K):
                 theo = TheoreticalModels.solve_mmc_infinite(lam_equiv, mu_equiv, c)
             elif not self.engine.priority_enabled:
                 theo = TheoreticalModels.solve_mmc_finite(lam_equiv, mu_equiv, c, int(K))
@@ -1573,9 +1640,12 @@ class QueueSimulatorApp(QMainWindow):
 
             if theo and not theo.get('unstable', False):
                 theo_p = [theo['p_n'].get(s, 0.0) for s in display_states]
-                lbl = "Theoretical M/M/m/K" if is_pure_exponential else "Theoretical M/M/m/K Reference"
+                if math.isinf(c):
+                    lbl = "Theoretical M/M/inf (Poisson)" if is_pure_exponential else "Theoretical M/M/inf Reference"
+                else:
+                    lbl = "Theoretical M/M/m/K" if is_pure_exponential else "Theoretical M/M/m/K Reference"
                 ax2.plot(display_states, theo_p, color="#f38ba8", marker='o', linewidth=2.0, markersize=5, label=lbl)
-            elif math.isinf(K) and (lam_equiv / (c * mu_equiv)) >= 1.0:
+            elif not math.isinf(c) and math.isinf(K) and (lam_equiv / (c * mu_equiv)) >= 1.0:
                 ax2.text(
                     0.5, 0.85, "A₀/m ≥ 1.0 on K=inf: No steady-state curve (Unstable)",
                     transform=ax2.transAxes, color="#f38ba8", fontsize=8, ha="center",
@@ -1640,14 +1710,19 @@ class QueueSimulatorApp(QMainWindow):
 
         theo = {}
         theo_note = "Model: "
+        mean_serv = self.engine.service_dist.mean()
+        mu = (1.0 / mean_serv) if (not math.isinf(mean_serv) and mean_serv > 0) else 0.0
         if (
             all_arr_exponential
             and isinstance(self.engine.service_dist, ExponentialDist)
             and (not self.engine.priority_enabled or math.isinf(self.engine.K))
             and lam_tot > 0
+            and mu > 0
         ):
-            mu = 1.0 / max(1e-6, self.engine.service_dist.mean())
-            if math.isinf(self.engine.K):
+            if math.isinf(self.engine.c):
+                theo = TheoreticalModels.solve_mmc_infinite(lam_tot, mu, self.engine.c)
+                theo_note += "M/M/inf Ample-Server Pure Delay System (Poisson state distribution, no queueing delay)."
+            elif math.isinf(self.engine.K):
                 theo = TheoreticalModels.solve_mmc_infinite(lam_tot, mu, self.engine.c)
                 prio_tag = " (Priority Conservation)" if self.engine.priority_enabled else ""
                 theo_note += f"M/M/{self.engine.c} Markovian Queue with Erlang-C Delay Formula{prio_tag}."
@@ -1660,12 +1735,15 @@ class QueueSimulatorApp(QMainWindow):
             and self.engine.c == 1
             and math.isinf(self.engine.K)
             and lam_tot > 0
+            and mu > 0
         ):
             theo = TheoreticalModels.solve_mg1_pollaczek_khinchine(lam_tot, self.engine.service_dist)
             prio_tag = " (Priority Conservation)" if self.engine.priority_enabled else ""
             theo_note += f"M/G/1 Pollaczek-Khinchine Formula with arbitrary service variance{prio_tag}."
         else:
-            if self.engine.priority_enabled and not math.isinf(self.engine.K):
+            if math.isinf(self.engine.c):
+                theo_note += "Ample-Server General Queue G/G/inf."
+            elif self.engine.priority_enabled and not math.isinf(self.engine.K):
                 theo_note += f"Multi-Class Priority Queue with finite per-class buffers (K = {int(self.engine.K)} each; no aggregate single-buffer closed-form formula)."
             elif not all_arr_exponential:
                 theo_note += "Non-Poisson arrival process (General G/G/m or G/M/m queue; no closed-form formula)."
@@ -1696,6 +1774,8 @@ class QueueSimulatorApp(QMainWindow):
                 return ("N/A", "-")
             if math.isinf(t_val) or math.isnan(t_val):
                 return ("inf (Inf. Variance)", "Divergent")
+            if t_val == 0.0 and abs(sim_val) < 1e-6:
+                return ("0.0000", "0.00%")
             return (f"{t_val:.4f}", f"{abs(sim_val - t_val) / max(1e-4, t_val) * 100:.2f}%")
 
         if is_unstable:
@@ -1706,8 +1786,12 @@ class QueueSimulatorApp(QMainWindow):
             err_rho = "-"
         else:
             t_rho = theo.get('rho', 0.0)
-            theo_rho = f"{t_rho:.4f}"
-            err_rho = f"{abs(m['rho'] - t_rho) / max(1e-4, t_rho) * 100:.2f}%"
+            if math.isinf(self.engine.c):
+                theo_rho = "0.0000 (m = ∞)"
+                err_rho = "0.00%"
+            else:
+                theo_rho = f"{t_rho:.4f}"
+                err_rho = f"{abs(m['rho'] - t_rho) / max(1e-4, t_rho) * 100:.2f}%"
 
         theo_L, err_L = fmt_theo_and_err(m['L'], theo, 'L')
         theo_Lq, err_Lq = fmt_theo_and_err(m['Lq'], theo, 'Lq')

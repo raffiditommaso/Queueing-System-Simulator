@@ -11,7 +11,7 @@ import math
 import base64
 import struct
 from functools import lru_cache
-from typing import Optional, Tuple, List
+from typing import Optional, Tuple, List, Union
 
 from PyQt6.QtWidgets import (
     QDialog,
@@ -99,27 +99,35 @@ def _render_latex_png_cached(latex_str: str, pt_size: float = 13.0, dpi: int = 2
     return b64_str, w_px, h_px
 
 
-def latex_eq_row(latex_str: str, eq_num: Optional[int] = None, zoom_factor: float = 1.0) -> str:
+def latex_eq_row(latex_str: str, eq_num: Optional[Union[int, str]] = None, zoom_factor: float = 1.0) -> str:
     """
     Build a textbook-style centered display equation row with an optional
     right-aligned equation number (e.g., '(1)', '(2)'), matching LaTeX PDFs.
+    Ensures equations and equation numbers are never truncated on the right margin.
     """
     dpi = 220
-    b64_str, w_px, h_px = _render_latex_png_cached(latex_str, pt_size=13.5, dpi=dpi)
+    b64_str, w_px, h_px = _render_latex_png_cached(latex_str, pt_size=11.5, dpi=dpi)
 
     scale = (96.0 / dpi) * zoom_factor
     disp_w = max(1, int(round(w_px * scale)))
     disp_h = max(1, int(round(h_px * scale)))
 
+    # Ensure equation image never exceeds usable width (~420px) to prevent pushing the right column off-page
+    max_w = int(round(420 * zoom_factor))
+    if disp_w > max_w:
+        ratio = max_w / disp_w
+        disp_w = max_w
+        disp_h = max(1, int(round(disp_h * ratio)))
+
     img_html = f'<img src="data:image/png;base64,{b64_str}" width="{disp_w}" height="{disp_h}">'
     num_str = f"({eq_num})" if eq_num is not None else ""
 
     return f"""
-    <table class="eq-table" width="100%" cellspacing="0" cellpadding="2">
+    <table class="eq-table" width="100%" cellspacing="0" cellpadding="0" style="width: 100%; margin-top: 3px; margin-bottom: 3px;">
         <tr>
-            <td width="6%"></td>
-            <td width="88%" align="center" valign="middle">{img_html}</td>
-            <td width="6%" align="right" valign="middle" class="eq-num" style="white-space: nowrap;">{num_str}</td>
+            <td width="42" style="width: 42px;"></td>
+            <td align="center" valign="middle">{img_html}</td>
+            <td width="42" align="right" valign="middle" class="eq-num" style="width: 42px; font-family: 'Cambria', 'Georgia', serif; font-size: 9pt; white-space: nowrap; text-align: right; padding-right: 4px;">{num_str}</td>
         </tr>
     </table>
     """
@@ -339,14 +347,18 @@ def generate_theory_html(
     )
     sys_mu = (
         mu
-        if (mu is not None and mu > 0)
+        if (mu is not None and mu >= 0.0)
         else (
-            1.0 / max(1e-6, engine.service_dist.mean())
-            if (engine is not None and getattr(engine, "service_dist", None) is not None)
-            else 1.00
+            0.0
+            if (engine is not None and getattr(engine, "service_dist", None) is not None and math.isinf(engine.service_dist.mean()))
+            else (
+                1.0 / max(1e-6, engine.service_dist.mean())
+                if (engine is not None and getattr(engine, "service_dist", None) is not None)
+                else 1.00
+            )
         )
     )
-    sys_c = m if (m is not None and m >= 1) else (engine.c if engine is not None else 1)
+    sys_c = m if (m is not None and (math.isinf(m) or m >= 1)) else (engine.c if engine is not None else 1)
 
     curr_d = None
     if engine is not None:
@@ -376,22 +388,52 @@ def generate_theory_html(
         )
 
         eq1 = latex_eq_row(
-            r"P(k, T) = \frac{(\lambda T)^k}{k!}\,e^{-\lambda T}, \qquad \overline{k} = \lambda T, \qquad \mathrm{var}(k) = \lambda T \quad (k = 0, 1, 2, \dots)",
+            r"P(k, T) = \frac{(\lambda T)^k}{k!}\,e^{-\lambda T} \quad (k = 0, 1, 2, \dots)",
             eq_num=1,
             zoom_factor=zoom_factor,
         )
         eq2 = latex_eq_row(
-            rf"f_{{{rv_tex}}}(t) = {rate_tex}\,e^{{-{rate_tex} t}}, \qquad F_{{{rv_tex}}}(t) = 1 - e^{{-{rate_tex} t}} \quad (t \geq 0), \qquad {rv_bar_tex} = \frac{{1}}{{{rate_tex}}}, \qquad {rv_var_tex} = \frac{{1}}{{{rate_tex}^2}}",
+            r"\overline{k} = \lambda T",
             eq_num=2,
             zoom_factor=zoom_factor,
         )
         eq3 = latex_eq_row(
-            r"f_{\zeta}(t) = \frac{1 - F_{\vartheta}(t)}{\overline{\vartheta}} = \frac{e^{-\mu t}}{1/\mu} = \mu\,e^{-\mu t} = f_{\vartheta}(t) \quad (t \geq 0), \qquad \overline{\zeta} = \frac{\mathrm{E}[\vartheta^2]}{2\overline{\vartheta}} = \frac{\sigma_{\vartheta}^2 + \overline{\vartheta}^2}{2\overline{\vartheta}} = \overline{\vartheta}",
+            r"\mathrm{var}(k) = \lambda T",
             eq_num=3,
             zoom_factor=zoom_factor,
         )
+        eq4 = latex_eq_row(
+            rf"f_{{{rv_tex}}}(t) = {rate_tex}\,e^{{-{rate_tex} t}} \quad (t \geq 0)",
+            eq_num=4,
+            zoom_factor=zoom_factor,
+        )
+        eq5 = latex_eq_row(
+            rf"F_{{{rv_tex}}}(t) = 1 - e^{{-{rate_tex} t}} \quad (t \geq 0)",
+            eq_num=5,
+            zoom_factor=zoom_factor,
+        )
+        eq6 = latex_eq_row(
+            rf"{rv_bar_tex} = \frac{{1}}{{{rate_tex}}}",
+            eq_num=6,
+            zoom_factor=zoom_factor,
+        )
+        eq7 = latex_eq_row(
+            rf"{rv_var_tex} = \frac{{1}}{{{rate_tex}^2}}",
+            eq_num=7,
+            zoom_factor=zoom_factor,
+        )
+        eq8 = latex_eq_row(
+            r"f_{\zeta}(t) = \frac{1 - F_{\vartheta}(t)}{\overline{\vartheta}} = \mu\,e^{-\mu t} = f_{\vartheta}(t) \quad (t \geq 0)",
+            eq_num=8,
+            zoom_factor=zoom_factor,
+        )
+        eq9 = latex_eq_row(
+            r"\overline{\zeta} = \frac{\mathrm{E}[\vartheta^2]}{2\overline{\vartheta}} = \frac{\sigma_{\vartheta}^2 + \overline{\vartheta}^2}{2\overline{\vartheta}} = \overline{\vartheta}",
+            eq_num=9,
+            zoom_factor=zoom_factor,
+        )
 
-        params_eq1_eq2 = where_list([
+        params_eq1_eq7 = where_list([
             ("<i>P</i>(<i>k</i>, <i>T</i>)", "Poisson's formula giving the probability of observing exactly <i>k</i> arrivals within an observation interval of duration <i>T</i> (s)."),
             ("<i>k&#772;</i>, var(<i>k</i>)", "Average value and variance of the number of arrivals <i>k</i> within interval <i>T</i>, both equal to <i>&lambda;T</i>."),
             (f"{rv_html} &ge; 0", f"Continuous random variable denoting {rv_desc}, measured in seconds (s)."),
@@ -402,7 +444,7 @@ def generate_theory_html(
             (f"{rv_var_html} = Var[{rv_html}] = 1 / {rate_html}<sup>2</sup>", f"Variance of {rv_html}, measured in seconds squared (s<sup>2</sup>); the squared coefficient of variation is <i>C<sub>v</sub></i><sup>2</sup> = {rv_var_html} / {rv_bar_html}<sup>2</sup> = 1."),
         ])
 
-        params_eq3 = where_list([
+        params_eq8_eq9 = where_list([
             ("<i>&zeta;</i> &ge; 0", "Residual service time (or residual inter-arrival time), defined as the remaining time until completion when observing a busy server starting from a randomly chosen instant <i>t</i><sub>1</sub>, in seconds (s)."),
             ("<i>f<sub>&zeta;</sub></i>(<i>t</i>)", "Probability density function of the residual service time <i>&zeta;</i>, in inverse seconds (s<sup>&minus;1</sup>)."),
             ("<i>&zeta;&#772;</i> = E[<i>&zeta;</i>]", "Mean residual service time, equal to (<i>&sigma;<sub>&vartheta;</sub></i><sup>2</sup> + <i>&vartheta;&#772;</i><sup>2</sup>) / (2<i>&vartheta;&#772;</i>), in seconds (s)."),
@@ -434,22 +476,41 @@ def generate_theory_html(
         </p>
         {eq1}
         <p>
-            <b>Exponential Inter-arrival / Service Time Distribution.</b> The continuous random variable {rv_html} has probability
-            density function <i>f<sub>{rv_html}</sub></i>(<i>t</i>), cumulative distribution function <i>F<sub>{rv_html}</sub></i>(<i>t</i>)
-            (for <i>t</i> &ge; 0, and 0 for <i>t</i> &lt; 0), mean {rv_bar_html}, and variance {rv_var_html}:
+            The average value and variance of the number of arrivals <i>k</i> within interval <i>T</i> are:
         </p>
         {eq2}
-        {params_eq1_eq2}
+        {eq3}
+        <p>
+            <b>Exponential Inter-arrival / Service Time Distribution.</b> The continuous random variable {rv_html} has probability
+            density function <i>f<sub>{rv_html}</sub></i>(<i>t</i>):
+        </p>
+        {eq4}
+        <p>
+            cumulative distribution function <i>F<sub>{rv_html}</sub></i>(<i>t</i>) (for <i>t</i> &ge; 0, and 0 for <i>t</i> &lt; 0):
+        </p>
+        {eq5}
+        <p>
+            mean value {rv_bar_html}:
+        </p>
+        {eq6}
+        <p>
+            and variance {rv_var_html}:
+        </p>
+        {eq7}
+        {params_eq1_eq7}
 
         <h2>3. Residual Time and the Memoryless Property</h2>
         <p>
             Let <i>&zeta;</i> denote the <b>residual service time</b>, defined as the remaining service duration still to be
-            completed when observing a busy server at a randomly chosen instant <i>t</i><sub>1</sub>. For a general distribution
-            <i>F<sub>&vartheta;</sub></i>(<i>t</i>), the density and mean of <i>&zeta;</i> are given by renewal theory, and for an
-            exponential random variable <i>&vartheta;</i> they reduce to the exact same exponential law:
+            completed when observing a busy server at a randomly chosen instant <i>t</i><sub>1</sub>. For an exponential
+            random variable <i>&vartheta;</i>, its probability density function is:
         </p>
-        {eq3}
-        {params_eq3}
+        {eq8}
+        <p>
+            and its mean residual duration is:
+        </p>
+        {eq9}
+        {params_eq8_eq9}
         <ul>
             <li><b>Memoryless Property:</b> Because <i>f<sub>&zeta;</sub></i>(<i>t</i>) = <i>f<sub>&vartheta;</sub></i>(<i>t</i>) and <i>&zeta;&#772;</i> = <i>&vartheta;&#772;</i> = 1/<i>&mu;</i>, the remaining time to complete an ongoing service (or until the next arrival) has the exact same distribution as a freshly started interval, independent of how much time has already elapsed.</li>
             <li><b>Composition and Decomposition of Poisson Processes:</b> Merging <i>N</i> independent Poisson processes with rates <i>&lambda;</i><sub>1</sub>, &hellip;, <i>&lambda;<sub>N</sub></i> yields a Poisson process with rate <i>&lambda;</i> = &sum;<sub><i>i</i>=1</sub><sup><i>N</i></sup> <i>&lambda;<sub>i</sub></i>. Conversely, randomly splitting a Poisson process of rate <i>&lambda;</i> with probabilities <i>P<sub>i</sub></i> (&sum; <i>P<sub>i</sub></i> = 1) produces independent Poisson processes of rates <i>&lambda;<sub>i</sub></i> = <i>P<sub>i</sub>&lambda;</i>.</li>
@@ -462,14 +523,14 @@ def generate_theory_html(
                 Consider {rv_desc} modeled by an exponential random variable {rv_html} with parameter {rate_html} = <b>{rate:.2f} cust/s</b>:
             </p>
             <ol>
-                <li><b>Mean, Variance, and Residual Mean (Eqs. 2&ndash;3):</b>
+                <li><b>Mean, Variance, and Residual Mean (Eqs. 6, 7, 9):</b>
                     <br>{rv_bar_html} = 1 / {rate_html} = 1 / {rate:.2f} = <b>{mean_v:.4f} s</b>, &nbsp;&nbsp;
                     {rv_var_html} = 1 / ({rate:.2f})<sup>2</sup> = <b>{var_v:.4f} s<sup>2</sup></b>, &nbsp;&nbsp;
                     E[{rv_html}<sup>2</sup>] = {rv_var_html} + {rv_bar_html}<sup>2</sup> = <b>{ex2_v:.4f} s<sup>2</sup></b>.
-                    <br>By Eq. (3), the mean residual duration at a random observation instant is <i>&zeta;&#772;</i> = {ex2_v:.4f} / (2 &times; {mean_v:.4f}) = <b>{mean_v:.4f} s</b> = {rv_bar_html}.</li>
-                <li><b>Cumulative Probability (Eq. 2):</b> The probability that {rv_html} does not exceed <i>t</i> = {t_short:.2f} s is:
+                    <br>By Eq. (9), the mean residual duration at a random observation instant is <i>&zeta;&#772;</i> = {ex2_v:.4f} / (2 &times; {mean_v:.4f}) = <b>{mean_v:.4f} s</b> = {rv_bar_html}.</li>
+                <li><b>Cumulative Probability (Eq. 5):</b> The probability that {rv_html} does not exceed <i>t</i> = {t_short:.2f} s is:
                     <br><i>F<sub>{rv_html}</sub></i>({t_short:.2f}) = 1 &minus; <i>e</i><sup>&minus;{rate:.2f} &times; {t_short:.2f}</sup> = <b>{p_short:.4f}</b> ({p_short*100:.2f}%).</li>
-                <li><b>Complementary Survival Probability (Eq. 2):</b> The probability that {rv_html} exceeds <i>t</i> = {t_long:.2f} s is:
+                <li><b>Complementary Survival Probability (Eq. 5):</b> The probability that {rv_html} exceeds <i>t</i> = {t_long:.2f} s is:
                     <br>1 &minus; <i>F<sub>{rv_html}</sub></i>({t_long:.2f}) = <i>e</i><sup>&minus;{rate:.2f} &times; {t_long:.2f}</sup> = <b>{p_long:.4f}</b> ({p_long*100:.2f}%).</li>
             </ol>
         </div>
@@ -509,22 +570,37 @@ def generate_theory_html(
         )
 
         eq1 = latex_eq_row(
-            rf"f_{{{rv_tex}}}(t) = \delta(t - {param_0_tex}), \qquad F_{{{rv_tex}}}(t) = 0 \;\; (t < {param_0_tex}), \qquad F_{{{rv_tex}}}(t) = 1 \;\; (t \geq {param_0_tex})",
+            rf"f_{{{rv_tex}}}(t) = \delta(t - {param_0_tex})",
             eq_num=1,
             zoom_factor=zoom_factor,
         )
         eq2 = latex_eq_row(
-            rf"{rv_bar_tex} = {param_0_tex} = \frac{{1}}{{{rate_tex}}}, \qquad {rv_var_tex} = 0, \qquad \mathrm{{E}}[{rv_tex}^2] = {param_0_tex}^2, \qquad \overline{{\zeta}} = \frac{{\sigma_{{{rv_tex}}}^2 + {rv_bar_tex}^2}}{{2{rv_bar_tex}}} = \frac{{{param_0_tex}}}{{2}}",
+            rf"F_{{{rv_tex}}}(t) = 0 \;\; (t < {param_0_tex}), \qquad F_{{{rv_tex}}}(t) = 1 \;\; (t \geq {param_0_tex})",
             eq_num=2,
             zoom_factor=zoom_factor,
         )
         eq3 = latex_eq_row(
-            r"\overline{\eta}^{(M/D/1)} = \frac{\lambda\,\overline{\vartheta}^2}{2(1 - \rho)} = \overline{\vartheta}\,\frac{\rho}{2(1 - \rho)} = \frac{1}{2}\,\overline{\eta}^{(M/M/1)} \quad (\rho = \lambda\overline{\vartheta} < 1)",
+            rf"{rv_bar_tex} = {param_0_tex} = \frac{{1}}{{{rate_tex}}}",
             eq_num=3,
             zoom_factor=zoom_factor,
         )
+        eq4 = latex_eq_row(
+            rf"{rv_var_tex} = 0, \qquad \mathrm{{E}}[{rv_tex}^2] = {param_0_tex}^2",
+            eq_num=4,
+            zoom_factor=zoom_factor,
+        )
+        eq5 = latex_eq_row(
+            rf"\overline{{\zeta}} = \frac{{\sigma_{{{rv_tex}}}^2 + {rv_bar_tex}^2}}{{2{rv_bar_tex}}} = \frac{{{param_0_tex}}}{{2}}",
+            eq_num=5,
+            zoom_factor=zoom_factor,
+        )
+        eq6 = latex_eq_row(
+            r"\overline{\eta}^{(M/D/1)} = \frac{\lambda\,\overline{\vartheta}^2}{2(1 - \rho)} = \overline{\vartheta}\,\frac{\rho}{2(1 - \rho)} = \frac{1}{2}\,\overline{\eta}^{(M/M/1)} \quad (\rho < 1)",
+            eq_num=6,
+            zoom_factor=zoom_factor,
+        )
 
-        params_eq1_eq2 = where_list([
+        params_eq1_eq5 = where_list([
             (f"{rv_html}", f"Random variable representing {rv_desc}, which is always equal to the constant {param_0_html}, in seconds (s)."),
             (f"{param_0_html} &gt; 0", "Fixed deterministic duration of every customer service or inter-arrival interval (labeled <i>D</i> in the simulator sidebar), in seconds (s)."),
             (f"<i>&delta;</i>(<i>t</i> &minus; {param_0_html})", f"Dirac delta function centered at <i>t</i> = {param_0_html}, in inverse seconds (s<sup>&minus;1</sup>)."),
@@ -534,7 +610,7 @@ def generate_theory_html(
             (f"<i>&zeta;&#772;</i> = {param_0_html} / 2", "Mean residual duration when observing the deterministic process at a random instant, equal to exactly half of the constant interval."),
         ])
 
-        params_eq3 = where_list([
+        params_eq6 = where_list([
             ("<i>&lambda;</i>", "Average arrival rate of the Poisson arrival process, in customers per second (cust/s)."),
             ("<i>&vartheta;&#772;</i> = <i>&vartheta;</i><sub>0</sub> = 1 / <i>&mu;</i>", "Constant service time of each customer, in seconds (s)."),
             ("<i>&rho;</i> = <i>A</i><sub>0</sub> = <i>&lambda;&vartheta;&#772;</i>", "Server utilization (equal to offered traffic in Erlangs for a single-server lossless queue, 0 &le; <i>&rho;</i> &lt; 1)."),
@@ -565,25 +641,31 @@ def generate_theory_html(
 
         <h2>2. Mathematical Formulation</h2>
         <p>
-            The probability density function (expressed via the Dirac delta impulse) and cumulative distribution function of {rv_html} are:
+            The probability density function (expressed via the Dirac delta impulse) of {rv_html} is:
         </p>
         {eq1}
         <p>
-            The mean value, variance, second moment, and mean residual time <i>&zeta;&#772;</i> are:
+            and the cumulative distribution function is:
         </p>
         {eq2}
-        {params_eq1_eq2}
+        <p>
+            The mean value, variance and second moment, and mean residual time <i>&zeta;&#772;</i> are:
+        </p>
+        {eq3}
+        {eq4}
+        {eq5}
+        {params_eq1_eq5}
 
         <h2>3. Theoretical Properties and Queueing Analysis</h2>
         <p>
-            <b>Residual Service Time and Waiting Time Reduction.</b> From Eq. (2), because <i>&sigma;<sub>&vartheta;</sub></i><sup>2</sup> = 0,
+            <b>Residual Service Time and Waiting Time Reduction.</b> From Eq. (5), because <i>&sigma;<sub>&vartheta;</sub></i><sup>2</sup> = 0,
             the mean residual service time of a busy deterministic server observed at a random instant is
             <i>&zeta;&#772;</i> = <i>&vartheta;</i><sub>0</sub>/2 (half that of an exponential server of the same mean <i>&vartheta;&#772;</i> = <i>&vartheta;</i><sub>0</sub>,
             where <i>&zeta;&#772;</i> = <i>&vartheta;&#772;</i>). Consequently, in an <i>&#8499;</i>/<i>&#119967;</i>/1 queue, the average waiting time
             <i>&eta;&#772;</i> is exactly half that of an <i>&#8499;</i>/<i>&#8499;</i>/1 queue:
         </p>
-        {eq3}
-        {params_eq3}
+        {eq6}
+        {params_eq6}
 
         <h2>4. Worked Numerical Example</h2>
         <div class="example-box">
@@ -592,12 +674,12 @@ def generate_theory_html(
                 Let {rv_html} be deterministic with constant value {param_0_html} = <b>{d_val:.2f} s</b>, and consider a single-server queue with Poisson arrival rate <i>&lambda;</i> = <b>{ex_lam:.2f} cust/s</b>:
             </p>
             <ol>
-                <li><b>Moments and Mean Residual Time (Eq. 2):</b>
+                <li><b>Moments and Mean Residual Time (Eqs. 3&ndash;5):</b>
                     <br>{rv_bar_html} = {param_0_html} = <b>{d_val:.4f} s</b>, &nbsp;&nbsp;
                     {rate_html} = 1 / {rv_bar_html} = <b>{rate_eq:.4f} cust/s</b>, &nbsp;&nbsp;
                     {rv_var_html} = <b>0.0000 s<sup>2</sup></b>, &nbsp;&nbsp;
                     <i>&zeta;&#772;</i> = {param_0_html} / 2 = {d_val:.2f} / 2 = <b>{zeta_bar:.4f} s</b>.</li>
-                <li><b>Average Waiting Time Comparison (Eq. 3):</b> With utilization <i>&rho;</i> = <i>&lambda;&vartheta;&#772;</i> = {ex_lam:.2f} &times; {d_val:.2f} = <b>{ex_rho:.4f}</b>:
+                <li><b>Average Waiting Time Comparison (Eq. 6):</b> With utilization <i>&rho;</i> = <i>&lambda;&vartheta;&#772;</i> = {ex_lam:.2f} &times; {d_val:.2f} = <b>{ex_rho:.4f}</b>:
                     <br>&bull; In an <i>&#8499;</i>/<i>&#8499;</i>/1 system: <i>&eta;&#772;</i><sup>(<i>M</i>/<i>M</i>/1)</sup> = <i>&vartheta;&#772;</i> &middot; <i>&rho;</i> / (1 &minus; <i>&rho;</i>) = {d_val:.2f} &times; {ex_rho:.4f} / (1 &minus; {ex_rho:.4f}) = <b>{eta_mm1:.4f} s</b>.
                     <br>&bull; In an <i>&#8499;</i>/<i>&#119967;</i>/1 system: <i>&eta;&#772;</i><sup>(<i>M</i>/<i>D</i>/1)</sup> = &frac12; <i>&eta;&#772;</i><sup>(<i>M</i>/<i>M</i>/1)</sup> = <b>{eta_md1:.4f} s</b>.</li>
             </ol>
@@ -646,17 +728,32 @@ def generate_theory_html(
         )
 
         eq1 = latex_eq_row(
-            rf"f_{{{rv_tex}}}(t) = \frac{{1}}{{{max_tex} - {min_tex}}}, \qquad F_{{{rv_tex}}}(t) = \frac{{t - {min_tex}}}{{{max_tex} - {min_tex}}} \quad ({min_tex} \leq t \leq {max_tex})",
+            rf"f_{{{rv_tex}}}(t) = \frac{{1}}{{{max_tex} - {min_tex}}} \quad ({min_tex} \leq t \leq {max_tex})",
             eq_num=1,
             zoom_factor=zoom_factor,
         )
         eq2 = latex_eq_row(
-            rf"{rv_bar_tex} = \frac{{{max_tex} + {min_tex}}}{{2}}, \qquad {rv_var_tex} = \frac{{({max_tex} - {min_tex})^2}}{{12}}, \qquad \overline{{\zeta}} = \frac{{{rv_var_tex} + {rv_bar_tex}^2}}{{2{rv_bar_tex}}}",
+            rf"F_{{{rv_tex}}}(t) = \frac{{t - {min_tex}}}{{{max_tex} - {min_tex}}} \quad ({min_tex} \leq t \leq {max_tex})",
             eq_num=2,
             zoom_factor=zoom_factor,
         )
+        eq3 = latex_eq_row(
+            rf"{rv_bar_tex} = \frac{{{max_tex} + {min_tex}}}{{2}}",
+            eq_num=3,
+            zoom_factor=zoom_factor,
+        )
+        eq4 = latex_eq_row(
+            rf"{rv_var_tex} = \frac{{({max_tex} - {min_tex})^2}}{{12}}",
+            eq_num=4,
+            zoom_factor=zoom_factor,
+        )
+        eq5 = latex_eq_row(
+            rf"\overline{{\zeta}} = \frac{{{rv_var_tex} + {rv_bar_tex}^2}}{{2{rv_bar_tex}}}",
+            eq_num=5,
+            zoom_factor=zoom_factor,
+        )
 
-        params_eq1_eq2 = where_list([
+        params_eq1_eq5 = where_list([
             (f"{rv_html}", f"Continuous random variable representing {rv_desc}, bounded within [{min_html}, {max_html}], in seconds (s)."),
             (f"{min_html} &ge; 0", "Minimum bound of the uniform interval (labeled <i>a</i> in the simulator sidebar), in seconds (s)."),
             (f"{max_html} &gt; {min_html}", "Maximum bound of the uniform interval (labeled <i>b</i> in the simulator sidebar), in seconds (s)."),
@@ -685,14 +782,20 @@ def generate_theory_html(
 
         <h2>2. Mathematical Formulation</h2>
         <p>
-            For {min_html} &le; <i>t</i> &le; {max_html}, the probability density function and cumulative distribution function are:
+            For {min_html} &le; <i>t</i> &le; {max_html}, the probability density function is:
         </p>
         {eq1}
         <p>
-            The mean value {rv_bar_html}, variance {rv_var_html}, and mean residual time <i>&zeta;&#772;</i> are given by:
+            and the cumulative distribution function is:
         </p>
         {eq2}
-        {params_eq1_eq2}
+        <p>
+            The mean value {rv_bar_html}, variance {rv_var_html}, and mean residual time <i>&zeta;&#772;</i> are given by:
+        </p>
+        {eq3}
+        {eq4}
+        {eq5}
+        {params_eq1_eq5}
 
         <h2>3. Theoretical Properties and Queueing Analysis</h2>
         <ul>
@@ -707,13 +810,13 @@ def generate_theory_html(
                 Consider a uniform random variable {rv_html} supported on [{min_html}, {max_html}] = [<b>{a_val:.2f} s</b>, <b>{b_val:.2f} s</b>]:
             </p>
             <ol>
-                <li><b>Mean Value and Average Rate (Eq. 2):</b>
+                <li><b>Mean Value and Average Rate (Eq. 3):</b>
                     <br>{rv_bar_html} = ({b_val:.2f} + {a_val:.2f}) / 2 = <b>{mean_v:.4f} s</b>, &nbsp;&nbsp;
                     {rate_html} = 1 / {rv_bar_html} = <b>{rate_eq:.4f} cust/s</b>.</li>
-                <li><b>Variance and Second Moment (Eq. 2):</b>
+                <li><b>Variance and Second Moment (Eq. 4):</b>
                     <br>{rv_var_html} = ({b_val:.2f} &minus; {a_val:.2f})<sup>2</sup> / 12 = ({b_val - a_val:.2f})<sup>2</sup> / 12 = <b>{var_v:.4f} s<sup>2</sup></b>,
                     <br>E[{rv_html}<sup>2</sup>] = {rv_var_html} + {rv_bar_html}<sup>2</sup> = {var_v:.4f} + ({mean_v:.4f})<sup>2</sup> = <b>{ex2_v:.4f} s<sup>2</sup></b>.</li>
-                <li><b>Mean Residual Duration (Eq. 2):</b>
+                <li><b>Mean Residual Duration (Eq. 5):</b>
                     <br><i>&zeta;&#772;</i> = ({var_v:.4f} + {mean_v*mean_v:.4f}) / (2 &times; {mean_v:.4f}) = {ex2_v:.4f} / {2.0*mean_v:.4f} = <b>{zeta_bar:.4f} s</b>.</li>
             </ol>
         </div>
@@ -763,17 +866,37 @@ def generate_theory_html(
         )
 
         eq1 = latex_eq_row(
-            rf"{rv_tex} = \sum_{{i=1}}^{{r}} {sub_i_tex}, \qquad {rv_bar_tex} = \frac{{1}}{{{rate_tex}}} = r\,{sub_0_tex}, \qquad {rv_var_tex} = r\,{sub_0_tex}^2 = \frac{{1}}{{r\,{rate_tex}^2}}",
+            rf"{rv_tex} = \sum_{{i=1}}^{{r}} {sub_i_tex}",
             eq_num=1,
             zoom_factor=zoom_factor,
         )
         eq2 = latex_eq_row(
-            rf"f_{{r,{rv_tex}}}(t) = \frac{{(r{rate_tex} t)^{{r-1}}}}{{(r - 1)!}}\,r{rate_tex}\,e^{{-r{rate_tex} t}}, \qquad F_{{r,{rv_tex}}}(t) = 1 - e^{{-r{rate_tex} t}} \sum_{{j=0}}^{{r-1}} \frac{{(r{rate_tex} t)^j}}{{j!}} \quad (t \geq 0)",
+            rf"{rv_bar_tex} = \frac{{1}}{{{rate_tex}}} = r\,{sub_0_tex}",
             eq_num=2,
             zoom_factor=zoom_factor,
         )
+        eq3 = latex_eq_row(
+            rf"{rv_var_tex} = r\,{sub_0_tex}^2 = \frac{{1}}{{r\,{rate_tex}^2}}",
+            eq_num=3,
+            zoom_factor=zoom_factor,
+        )
+        eq4 = latex_eq_row(
+            rf"f_{{r,{rv_tex}}}(t) = \frac{{(r{rate_tex} t)^{{r-1}}}}{{(r - 1)!}}\,r{rate_tex}\,e^{{-r{rate_tex} t}} \quad (t \geq 0)",
+            eq_num=4,
+            zoom_factor=zoom_factor,
+        )
+        eq5 = latex_eq_row(
+            rf"F_{{r,{rv_tex}}}(t) = 1 - e^{{-r{rate_tex} t}} \sum_{{j=0}}^{{r-1}} \frac{{(r{rate_tex} t)^j}}{{j!}} \quad (t \geq 0)",
+            eq_num=5,
+            zoom_factor=zoom_factor,
+        )
+        eq6 = latex_eq_row(
+            rf"\overline{{\zeta}} = \frac{{\sigma_{{{rv_tex}}}^2 + {rv_bar_tex}^2}}{{2{rv_bar_tex}}} = \frac{{{rv_bar_tex}(1 + 1/r)}}{{2}}",
+            eq_num=6,
+            zoom_factor=zoom_factor,
+        )
 
-        params_eq1_eq2 = where_list([
+        params_eq1_eq6 = where_list([
             (f"{rv_html} &ge; 0", f"Total Erlang random variable representing {rv_desc}, obtained as the sum of <i>r</i> i.i.d. exponential stages, in seconds (s)."),
             ("<i>r</i> &isin; &#123;1, 2, &hellip;&#125;", "Number of independent exponential stages in series (labeled <i>k</i> in the simulator sidebar)."),
             (f"{sub_i_html}", f"Exponential random variable of the <i>i</i>-th stage (<i>i</i> = 1, &hellip;, <i>r</i>), each with mean {sub_0_html} = 1/(<i>r</i>{rate_html}), in seconds (s)."),
@@ -804,14 +927,24 @@ def generate_theory_html(
 
         <h2>2. Mathematical Formulation</h2>
         <p>
-            Expressing {rv_html} as the sum of <i>r</i> i.i.d. exponential stages {sub_i_html} gives the mean and variance:
+            Expressing {rv_html} as the sum of <i>r</i> i.i.d. exponential stages {sub_i_html}:
         </p>
         {eq1}
         <p>
-            Computing the <i>r</i>-fold convolution of the stage density functions yields the Erlang PDF and CDF (for <i>t</i> &ge; 0, and 0 for <i>t</i> &lt; 0):
+            gives the overall mean and variance:
         </p>
         {eq2}
-        {params_eq1_eq2}
+        {eq3}
+        <p>
+            Computing the <i>r</i>-fold convolution of the stage density functions yields the Erlang PDF and CDF (for <i>t</i> &ge; 0, and 0 for <i>t</i> &lt; 0):
+        </p>
+        {eq4}
+        {eq5}
+        <p>
+            The mean residual service duration is:
+        </p>
+        {eq6}
+        {params_eq1_eq6}
 
         <h2>3. Theoretical Properties and Queueing Analysis</h2>
         <ul>
@@ -826,13 +959,13 @@ def generate_theory_html(
                 Consider an Erlang distribution with <i>r</i> = <b>{r_stages} stages</b> and overall rate {rate_html} = <b>{rate_val:.2f} cust/s</b>:
             </p>
             <ol>
-                <li><b>Overall Mean and Single-Stage Mean (Eq. 1):</b>
+                <li><b>Overall Mean and Single-Stage Mean (Eq. 2):</b>
                     <br>{rv_bar_html} = 1 / {rate_html} = 1 / {rate_val:.2f} = <b>{mean_v:.4f} s</b>, &nbsp;&nbsp;
                     {sub_0_html} = {rv_bar_html} / <i>r</i> = {mean_v:.4f} / {r_stages} = <b>{stage_mean_0:.4f} s</b> (stage rate <i>r</i>{rate_html} = <b>{stage_rate:.4f} s<sup>&minus;1</sup></b>).</li>
-                <li><b>Variance and Dispersion (Eq. 1):</b>
+                <li><b>Variance and Dispersion (Eq. 3):</b>
                     <br>{rv_var_html} = <i>r</i>{sub_0_html}<sup>2</sup> = {r_stages} &times; ({stage_mean_0:.4f})<sup>2</sup> = <b>{var_v:.4f} s<sup>2</sup></b>, &nbsp;&nbsp;
                     <i>C<sub>v</sub></i><sup>2</sup> = 1 / {r_stages} = <b>{cv2:.4f}</b>.</li>
-                <li><b>Mean Residual Duration:</b>
+                <li><b>Mean Residual Duration (Eq. 6):</b>
                     <br><i>&zeta;&#772;</i> = ({var_v:.4f} + {mean_v*mean_v:.4f}) / (2 &times; {mean_v:.4f}) = <b>{zeta_bar:.4f} s</b>.</li>
             </ol>
         </div>
@@ -878,22 +1011,42 @@ def generate_theory_html(
         )
 
         eq1 = latex_eq_row(
-            rf"f_{{{rv_tex}}}(t) = p_1 r_1 e^{{-r_1 t}} + p_2 r_2 e^{{-r_2 t}}, \qquad F_{{{rv_tex}}}(t) = 1 - p_1 e^{{-r_1 t}} - p_2 e^{{-r_2 t}} \quad (t \geq 0)",
+            rf"f_{{{rv_tex}}}(t) = p_1 r_1 e^{{-r_1 t}} + p_2 r_2 e^{{-r_2 t}} \quad (t \geq 0)",
             eq_num=1,
             zoom_factor=zoom_factor,
         )
         eq2 = latex_eq_row(
-            rf"{rv_bar_tex} = \frac{{p_1}}{{r_1}} + \frac{{p_2}}{{r_2}}, \qquad \mathrm{{E}}[{rv_tex}^2] = 2\left(\frac{{p_1}}{{r_1^2}} + \frac{{p_2}}{{r_2^2}}\right), \qquad {rv_var_tex} = \mathrm{{E}}[{rv_tex}^2] - {rv_bar_tex}^2",
+            rf"F_{{{rv_tex}}}(t) = 1 - p_1 e^{{-r_1 t}} - p_2 e^{{-r_2 t}} \quad (t \geq 0)",
             eq_num=2,
             zoom_factor=zoom_factor,
         )
         eq3 = latex_eq_row(
-            rf"\overline{{\zeta}} = \frac{{\mathrm{{E}}[{rv_tex}^2]}}{{2{rv_bar_tex}}} = \frac{{{rv_var_tex} + {rv_bar_tex}^2}}{{2{rv_bar_tex}}} \geq {rv_bar_tex}, \qquad C_v^2 = \frac{{{rv_var_tex}}}{{{rv_bar_tex}^2}} \geq 1",
+            rf"{rv_bar_tex} = \frac{{p_1}}{{r_1}} + \frac{{p_2}}{{r_2}}",
             eq_num=3,
             zoom_factor=zoom_factor,
         )
+        eq4 = latex_eq_row(
+            rf"\mathrm{{E}}[{rv_tex}^2] = 2\left(\frac{{p_1}}{{r_1^2}} + \frac{{p_2}}{{r_2^2}}\right)",
+            eq_num=4,
+            zoom_factor=zoom_factor,
+        )
+        eq5 = latex_eq_row(
+            rf"{rv_var_tex} = \mathrm{{E}}[{rv_tex}^2] - {rv_bar_tex}^2",
+            eq_num=5,
+            zoom_factor=zoom_factor,
+        )
+        eq6 = latex_eq_row(
+            rf"\overline{{\zeta}} = \frac{{\mathrm{{E}}[{rv_tex}^2]}}{{2{rv_bar_tex}}} = \frac{{{rv_var_tex} + {rv_bar_tex}^2}}{{2{rv_bar_tex}}} \geq {rv_bar_tex}",
+            eq_num=6,
+            zoom_factor=zoom_factor,
+        )
+        eq7 = latex_eq_row(
+            rf"C_v^2 = \frac{{{rv_var_tex}}}{{{rv_bar_tex}^2}} \geq 1",
+            eq_num=7,
+            zoom_factor=zoom_factor,
+        )
 
-        params_eq1_eq3 = where_list([
+        params_eq1_eq7 = where_list([
             (f"{rv_html} &ge; 0", f"Continuous random variable representing {rv_desc}, in seconds (s)."),
             ("<i>p</i><sub>1</sub>, <i>p</i><sub>2</sub> = 1 &minus; <i>p</i><sub>1</sub>", "Probabilities of selecting exponential Branch 1 and Branch 2, respectively (<i>p</i><sub>1</sub> + <i>p</i><sub>2</sub> = 1)."),
             ("<i>r</i><sub>1</sub> &gt; 0, <i>r</i><sub>2</sub> &gt; 0", "Exponential rates of Branch 1 and Branch 2, measured in customers per second (cust/s)."),
@@ -926,12 +1079,19 @@ def generate_theory_html(
             By total probability across the two parallel branches, the PDF and CDF for <i>t</i> &ge; 0 are:
         </p>
         {eq1}
-        <p>
-            The mean value {rv_bar_html}, second moment E[{rv_html}<sup>2</sup>], variance {rv_var_html}, and mean residual duration <i>&zeta;&#772;</i> are:
-        </p>
         {eq2}
+        <p>
+            The mean value {rv_bar_html}, second moment E[{rv_html}<sup>2</sup>], and variance {rv_var_html} are:
+        </p>
         {eq3}
-        {params_eq1_eq3}
+        {eq4}
+        {eq5}
+        <p>
+            The mean residual duration <i>&zeta;&#772;</i> and squared coefficient of variation <i>C<sub>v</sub></i><sup>2</sup> satisfy:
+        </p>
+        {eq6}
+        {eq7}
+        {params_eq1_eq7}
 
         <h2>3. Theoretical Properties and Queueing Analysis</h2>
         <ul>
@@ -942,14 +1102,14 @@ def generate_theory_html(
         <div class="example-box">
             <p class="example-title">Example 1 ({'Evaluation with Active Simulation Parameters' if is_live else 'Illustrative Calculation with Reference Parameters'}: p<sub>1</sub> = {p1:.2f}, r<sub>1</sub> = {r1:.2f} cust/s, r<sub>2</sub> = {r2:.2f} cust/s)</p>
             <ol>
-                <li><b>Mean Value and Average Rate (Eq. 2):</b> With <i>p</i><sub>1</sub> = {p1:.2f} and <i>p</i><sub>2</sub> = {p2:.2f}:
+                <li><b>Mean Value and Average Rate (Eq. 3):</b> With <i>p</i><sub>1</sub> = {p1:.2f} and <i>p</i><sub>2</sub> = {p2:.2f}:
                     <br>{rv_bar_html} = ({p1:.2f} / {r1:.2f}) + ({p2:.2f} / {r2:.2f}) = {p1/r1:.4f} + {p2/r2:.4f} = <b>{mean_v:.4f} s</b>, &nbsp;&nbsp;
                     {rate_html} = 1 / {rv_bar_html} = <b>{rate_eq:.4f} cust/s</b>.</li>
-                <li><b>Second Moment and Variance (Eq. 2):</b>
+                <li><b>Second Moment and Variance (Eqs. 4&ndash;5):</b>
                     <br>E[{rv_html}<sup>2</sup>] = 2 &times; [({p1:.2f} / {r1:.2f}<sup>2</sup>) + ({p2:.2f} / {r2:.2f}<sup>2</sup>)] = <b>{ex2_v:.4f} s<sup>2</sup></b>,
                     <br>{rv_var_html} = {ex2_v:.4f} &minus; ({mean_v:.4f})<sup>2</sup> = <b>{var_v:.4f} s<sup>2</sup></b>, &nbsp;&nbsp;
                     <i>C<sub>v</sub></i><sup>2</sup> = {var_v:.4f} / ({mean_v:.4f})<sup>2</sup> = <b>{cv2:.4f}</b>.</li>
-                <li><b>Mean Residual Duration (Eq. 3):</b>
+                <li><b>Mean Residual Duration (Eq. 6):</b>
                     <br><i>&zeta;&#772;</i> = {ex2_v:.4f} / (2 &times; {mean_v:.4f}) = <b>{zeta_bar:.4f} s</b> (strictly greater than {rv_bar_html} = {mean_v:.4f} s).</li>
             </ol>
         </div>
@@ -991,22 +1151,32 @@ def generate_theory_html(
         )
 
         eq1 = latex_eq_row(
-            rf"f_{{{rv_tex}}}(t) = \frac{{\alpha\,t_0^\alpha}}{{t^{{\alpha + 1}}}}, \qquad F_{{{rv_tex}}}(t) = 1 - \left(\frac{{t_0}}{{t}}\right)^\alpha \quad (t \geq t_0)",
+            rf"f_{{{rv_tex}}}(t) = \frac{{\alpha\,t_0^\alpha}}{{t^{{\alpha + 1}}}} \quad (t \geq t_0)",
             eq_num=1,
             zoom_factor=zoom_factor,
         )
         eq2 = latex_eq_row(
-            rf"{rv_bar_tex} = \frac{{\alpha\,t_0}}{{\alpha - 1}} \;\; (\alpha > 1), \qquad {rv_var_tex} = \left(\frac{{t_0}}{{\alpha - 1}}\right)^2 \frac{{\alpha}}{{\alpha - 2}} \;\; (\alpha > 2)",
+            rf"F_{{{rv_tex}}}(t) = 1 - \left(\frac{{t_0}}{{t}}\right)^\alpha \quad (t \geq t_0)",
             eq_num=2,
             zoom_factor=zoom_factor,
         )
         eq3 = latex_eq_row(
-            rf"{rv_bar_tex} = \infty \;\; (\alpha \leq 1), \qquad {rv_var_tex} = \infty \;\; (1 < \alpha \leq 2), \qquad \overline{{\zeta}} = \frac{{{rv_var_tex} + {rv_bar_tex}^2}}{{2{rv_bar_tex}}}",
+            rf"{rv_bar_tex} = \frac{{\alpha\,t_0}}{{\alpha - 1}} \quad (\alpha > 1)",
             eq_num=3,
             zoom_factor=zoom_factor,
         )
+        eq4 = latex_eq_row(
+            rf"{rv_var_tex} = \left(\frac{{t_0}}{{\alpha - 1}}\right)^2 \frac{{\alpha}}{{\alpha - 2}} \quad (\alpha > 2)",
+            eq_num=4,
+            zoom_factor=zoom_factor,
+        )
+        eq5 = latex_eq_row(
+            rf"\overline{{\zeta}} = \frac{{{rv_var_tex} + {rv_bar_tex}^2}}{{2{rv_bar_tex}}} \quad (\alpha > 2)",
+            eq_num=5,
+            zoom_factor=zoom_factor,
+        )
 
-        params_eq1_eq3 = where_list([
+        params_eq1_eq5 = where_list([
             (f"{rv_html} &ge; <i>t</i><sub>0</sub>", f"Continuous random variable representing {rv_desc}, supported on [<i>t</i><sub>0</sub>, &infin;), in seconds (s)."),
             ("<i>t</i><sub>0</sub> &gt; 0", "Positive scale parameter (minimum possible value of " + rv_html + ", labeled <i>x<sub>m</sub></i> in the simulator sidebar), in seconds (s)."),
             ("<i>&alpha;</i> &gt; 0", "Positive dimensionless shape parameter governing the power-law tail decay."),
@@ -1038,15 +1208,23 @@ def generate_theory_html(
 
         <h2>2. Mathematical Formulation</h2>
         <p>
-            For <i>t</i> &ge; <i>t</i><sub>0</sub> (and 0 for <i>t</i> &lt; <i>t</i><sub>0</sub>), the probability density function and cumulative distribution function are:
+            For <i>t</i> &ge; <i>t</i><sub>0</sub> (and 0 for <i>t</i> &lt; <i>t</i><sub>0</sub>), the probability density function is:
         </p>
         {eq1}
         <p>
-            The mean value {rv_bar_html} and variance {rv_var_html} depend on the shape parameter <i>&alpha;</i>:
+            and the cumulative distribution function is:
         </p>
         {eq2}
+        <p>
+            The mean value {rv_bar_html} and variance {rv_var_html} depend on the shape parameter <i>&alpha;</i>:
+        </p>
         {eq3}
-        {params_eq1_eq3}
+        {eq4}
+        <p>
+            When <i>&alpha;</i> &gt; 2, the mean residual service time is:
+        </p>
+        {eq5}
+        {params_eq1_eq5}
 
         <h2>3. Theoretical Properties and Queueing Analysis</h2>
         <ul>
@@ -1058,10 +1236,10 @@ def generate_theory_html(
         <div class="example-box">
             <p class="example-title">Example 1 ({'Evaluation with Active Simulation Parameters' if is_live else 'Illustrative Calculation with Reference Parameters'}: t<sub>0</sub> = {t0:.2f} s, &alpha; = {alpha:.2f})</p>
             <ol>
-                <li><b>Mean Value and Average Rate (Eq. 2):</b> Since <i>&alpha;</i> = {alpha:.2f} &gt; 1:
+                <li><b>Mean Value and Average Rate (Eq. 3):</b> Since <i>&alpha;</i> = {alpha:.2f} &gt; 1:
                     <br>{rv_bar_html} = (&alpha;<i>t</i><sub>0</sub>) / (&alpha; &minus; 1) = ({alpha:.2f} &times; {t0:.2f}) / ({alpha:.2f} &minus; 1) = <b>{mean_v:.4f} s</b>, &nbsp;&nbsp;
                     {rate_html} = 1 / {rv_bar_html} = <b>{rate_eq:.4f} cust/s</b>.</li>
-                <li><b>Variance and Mean Residual Time (Eqs. 2&ndash;3):</b>
+                <li><b>Variance and Mean Residual Time (Eqs. 4&ndash;5):</b>
                     {f"<br>Since &alpha; = {alpha:.2f} &gt; 2:<br>{rv_var_html} = [{t0:.2f} / ({alpha:.2f} &minus; 1)]<sup>2</sup> &times; [{alpha:.2f} / ({alpha:.2f} &minus; 2)] = <b>{var_v:.4f} s<sup>2</sup></b>, &nbsp;&nbsp; <i>&zeta;&#772;</i> = ({var_v:.4f} + {mean_v*mean_v:.4f}) / (2 &times; {mean_v:.4f}) = <b>{zeta_bar:.4f} s</b>." if alpha > 2.0 else f"<br>Because 1 &lt; &alpha; = {alpha:.2f} &le; 2, the variance and mean residual duration diverge: {rv_var_html} = <b>&infin;</b> and <i>&zeta;&#772;</i> = <b>&infin;</b>."}</li>
                 <li><b>Tail Probability at <i>t</i> = {t_tail:.2f} s (5{rv_bar_html}):</b>
                     <br>1 &minus; <i>F<sub>{rv_html}</sub></i>({t_tail:.2f}) = ({t0:.2f} / {t_tail:.2f})<sup>{alpha:.2f}</sup> = <b>{p_pareto_tail:.5f}</b> ({p_pareto_tail*100:.3f}%), compared to <i>e</i><sup>&minus;5</sup> = <b>{p_exp_tail:.5f}</b> ({p_exp_tail*100:.3f}%) for an exponential random variable with the same mean.</li>
@@ -1086,27 +1264,63 @@ def generate_theory_html(
         lam_v = sys_lam
         mu_v = sys_mu
         c_v = sys_c
-        A0_v = lam_v / max(1e-6, mu_v)
-        rho_0 = A0_v / c_v
+        c_v_str = "&infin;" if math.isinf(c_v) else str(c_v)
+
+        is_zero_mu = (mu_v <= 0.0)
+        is_inf_servers = math.isinf(c_v)
+
+        if is_zero_mu:
+            A0_v = float("inf")
+            rho_0 = float("inf")
+            A0_str = "&infin;"
+            rho_0_str = "&infin;" if not is_inf_servers else "&infin; (Accumulating)"
+            min_loss_frac = 1.0 if not is_inf_servers else 0.0
+        else:
+            A0_v = lam_v / mu_v
+            A0_str = f"{A0_v:.4f}"
+            if is_inf_servers:
+                rho_0 = 0.0
+                rho_0_str = "0.0000"
+                min_loss_frac = 0.0
+            else:
+                rho_0 = A0_v / c_v
+                rho_0_str = f"{rho_0:.4f}"
+                min_loss_frac = max(0.0, (A0_v - c_v) / A0_v) if A0_v > 0 else 0.0
+
         K_v = engine.K if engine is not None else float("inf")
 
         eq1 = latex_eq_row(
-            r"I(T) = \frac{1}{T} \int_{0}^{T} k(t)\,\mathrm{d}t, \qquad A = \lim_{T \to \infty} I(T) = \langle k(t) \rangle = \sum_{k=0}^{\infty} k\,P_k",
+            r"I(T) = \frac{1}{T} \int_{0}^{T} k(t)\,\mathrm{d}t",
             eq_num=1,
             zoom_factor=zoom_factor,
         )
         eq2 = latex_eq_row(
-            r"A_0 = \lambda\,\overline{\vartheta} = \frac{\lambda}{\mu}, \qquad \rho = \frac{A_0}{m} = \frac{\lambda}{m\mu} < 1 \quad \Longleftrightarrow \quad A_0 < m \quad (\text{Unlimited Waiting Space})",
+            r"A = \lim_{T \to \infty} I(T) = \langle k(t) \rangle = \sum_{k=0}^{\infty} k\,P_k",
             eq_num=2,
             zoom_factor=zoom_factor,
         )
         eq3 = latex_eq_row(
-            r"\lim_{L \to \infty} \pi_p = \frac{A_0 - m}{A_0} = 1 - \frac{m}{A_0} \quad (A_0 > m), \qquad \lim_{L \to \infty} \pi_p = 0 \quad (A_0 \leq m)",
+            r"A_0 = \lambda\,\overline{\vartheta} = \frac{\lambda}{\mu}",
             eq_num=3,
             zoom_factor=zoom_factor,
         )
+        eq4 = latex_eq_row(
+            r"\rho = \frac{A_0}{m} = \frac{\lambda}{m\mu} < 1 \quad \Longleftrightarrow \quad A_0 < m \quad (\text{Unlimited Waiting Space})",
+            eq_num=4,
+            zoom_factor=zoom_factor,
+        )
+        eq5 = latex_eq_row(
+            r"\lim_{L \to \infty} \pi_p = \frac{A_0 - m}{A_0} = 1 - \frac{m}{A_0} \quad (A_0 > m)",
+            eq_num=5,
+            zoom_factor=zoom_factor,
+        )
+        eq6 = latex_eq_row(
+            r"\lim_{L \to \infty} \pi_p = 0 \quad (A_0 \leq m)",
+            eq_num=6,
+            zoom_factor=zoom_factor,
+        )
 
-        params_eq1_eq3 = where_list([
+        params_eq1_eq6 = where_list([
             ("<i>k</i>(<i>t</i>)", "Traffic in the system at time <i>t</i>, defined as the instantaneous number of customers in the system at time <i>t</i> (labeled <i>N</i>(<i>t</i>) in the simulator)."),
             ("<i>I</i>(<i>T</i>)", "Average traffic in the system over a finite observation interval of duration <i>T</i>, in Erlangs (E)."),
             ("<i>A</i> = &langle;<i>k</i>(<i>t</i>)&rangle;", "Average traffic intensity in the system (steady-state time average of <i>k</i>(<i>t</i>), labeled <i>L</i> in the simulator), measured in Erlangs (E)."),
@@ -1118,13 +1332,82 @@ def generate_theory_html(
             ("<i>&pi;<sub>p</sub></i>", "Blocking probability (fraction of arriving customers rejected due to the queue being full)."),
         ])
 
-        min_loss_frac = max(0.0, (A0_v - c_v) / max(1e-6, A0_v))
+        if is_zero_mu:
+            step1_html = (
+                f"<b>Offered Traffic <i>A</i><sub>0</sub> and Ratio <i>A</i><sub>0</sub>/<i>m</i> (Eqs. 3&ndash;4):</b> "
+                f"<br>With zero service rate <i>&mu;</i> = 0.00 cust/s (mean service duration <i>&vartheta;&#772;</i> = &infin;): "
+                f"<br><i>A</i><sub>0</sub> = <i>&lambda;&vartheta;&#772;</i> = {lam_v:.2f} / 0.00 = <b>&infin; E</b>, &nbsp;&nbsp; "
+                f"<i>A</i><sub>0</sub> / <i>m</i> = &infin; / {c_v_str} = <b>&infin;</b>."
+            )
+            step2_html = (
+                f"<br>With <i>&mu;</i> = 0.00 cust/s, no customer can ever complete service. "
+                + (
+                    f"Because servers are infinite (<i>m</i> = &infin;), every arriving customer enters an idle server and stays permanently: system occupancy <i>k</i>(<i>t</i>) grows monotonically without bound (<b>non-ergodic / accumulating regime</b>)."
+                    if is_inf_servers
+                    else f"With <i>m</i> = {c_v} finite servers, the system is <b>completely frozen and non-ergodic</b>: the queue accumulates without bound and the steady-state limit does not exist."
+                )
+            )
+            step3_html = (
+                f"<br>With infinite servers (<i>m</i> = &infin;), no customer is ever blocked (<i>&pi;<sub>p</sub></i> = 0.00%)."
+                if is_inf_servers
+                else f"<br>With <i>&mu;</i> = 0.00 cust/s and finite waiting space <i>L</i>, once the <i>m</i> + <i>L</i> slots fill up, all subsequent arrivals are rejected with 100% blocking probability (lim<sub><i>t</i>&rarr;&infin;</sub> <i>&pi;<sub>p</sub></i> = 100.00%)."
+            )
+        elif is_inf_servers:
+            p0_inf = math.exp(-A0_v)
+            step1_html = (
+                f"<b>Offered Traffic <i>A</i><sub>0</sub> and Ratio <i>A</i><sub>0</sub>/<i>m</i> (Eqs. 3&ndash;4):</b> "
+                f"<br><i>A</i><sub>0</sub> = <i>&lambda;&vartheta;&#772;</i> = {lam_v:.2f} / {mu_v:.2f} = <b>{A0_v:.4f} E</b>, &nbsp;&nbsp; "
+                f"<i>A</i><sub>0</sub> / <i>m</i> = {A0_v:.4f} / &infin; = <b>0.0000</b>."
+            )
+            step2_html = (
+                f"<br>Since the system possesses infinite parallel servers (<i>m</i> = &infin;), arriving customers never wait in queue "
+                f"(<i>&rho;</i> = <i>A</i><sub>0</sub>/&infin; = <b>0.0000</b> &lt; 1). The system is <b>unconditionally ergodic and stable</b> "
+                f"for any finite arrival rate <i>&lambda;</i> and service rate <i>&mu;</i> &gt; 0, following a Poisson steady-state distribution with "
+                f"<i>P</i><sub>0</sub> = <i>e</i><sup>&minus;<i>A</i><sub>0</sub></sup> = <i>e</i><sup>&minus;{A0_v:.4f}</sup> = <b>{p0_inf:.4f}</b>."
+            )
+            step3_html = (
+                f"<br>With infinite servers (<i>m</i> = &infin;), the blocking probability is identically <b><i>&pi;<sub>p</sub></i> = 0.00%</b> regardless of queue capacity."
+            )
+        else:
+            step1_html = (
+                f"<b>Offered Traffic <i>A</i><sub>0</sub> and Ratio <i>A</i><sub>0</sub>/<i>m</i> (Eqs. 3&ndash;4):</b> "
+                f"<br><i>A</i><sub>0</sub> = <i>&lambda;&vartheta;&#772;</i> = {lam_v:.2f} / {mu_v:.2f} = <b>{A0_v:.4f} E</b>, &nbsp;&nbsp; "
+                f"<i>A</i><sub>0</sub> / <i>m</i> = {A0_v:.4f} / {c_v} = <b>{rho_0:.4f}</b>."
+            )
+            p0_text = f" (for <i>m</i> = 1, the empty-system probability is <i>P</i><sub>0</sub> = 1 &minus; <i>&rho;</i> = <b>{1.0 - rho_0:.4f}</b>)" if c_v == 1 else ""
+            if rho_0 < 1.0:
+                step2_html = (
+                    f"<br>Since <i>A</i><sub>0</sub> = {A0_v:.4f} &lt; <i>m</i> = {c_v} (<i>&rho;</i> = {rho_0:.4f} &lt; 1), "
+                    f"an unlimited-queue system is <b>ergodic and stable</b>{p0_text}."
+                )
+                step3_html = (
+                    f"<br>Since <i>A</i><sub>0</sub> &le; <i>m</i>, lim<sub><i>L</i>&rarr;&infin;</sub> <i>&pi;<sub>p</sub></i> = 0, "
+                    f"so any desired blocking probability <i>&pi;<sub>p</sub></i> &gt; 0 can be achieved by choosing a sufficiently large queue size <i>L</i>."
+                )
+            else:
+                step2_html = (
+                    f"<br>Because <i>A</i><sub>0</sub> = {A0_v:.4f} &ge; <i>m</i> = {c_v} (<i>A</i><sub>0</sub>/<i>m</i> = {rho_0:.4f} &ge; 1), "
+                    f"an unlimited-queue system is <b>unstable</b>: the limit <i>A</i> = lim<sub><i>T</i>&rarr;&infin;</sub> <i>I</i>(<i>T</i>) "
+                    f"does not exist and <i>k</i>(<i>t</i>) grows without bound."
+                )
+                step3_html = (
+                    f"<br>Because <i>A</i><sub>0</sub> &gt; <i>m</i>, even if the finite waiting space <i>L</i> is made arbitrarily large (<i>L</i> &rarr; &infin;), "
+                    f"the blocking probability cannot be reduced below (<i>A</i><sub>0</sub> &minus; <i>m</i>)/<i>A</i><sub>0</sub> = "
+                    f"({A0_v:.4f} &minus; {c_v}) / {A0_v:.4f} = <b>{min_loss_frac:.4f}</b> ({min_loss_frac*100:.2f}%)."
+                )
+
+        status_note = (
+            "Non-ergodic (Frozen μ=0)"
+            if is_zero_mu
+            else ("Ample Servers (Stable)" if is_inf_servers else ("Stable for L=∞" if rho_0 < 1.0 else "Unstable for L=∞"))
+        )
+        floor_str = "100.00%" if (is_zero_mu and not is_inf_servers) else f"{min_loss_frac*100:.2f}%"
 
         html = f"""{css}
         <h1>Ergodicity and Stability of Queueing Systems (<i>&rho;</i> = <i>A</i><sub>0</sub>/<i>m</i> &lt; 1)</h1>
         <div class="meta-line">
-            Active Parameters: <i>&lambda;</i> = {lam_v:.2f} cust/s, <i>m</i> = {c_v}, <i>&mu;</i> = {mu_v:.2f} cust/s,
-            Offered Traffic <i>A</i><sub>0</sub> = {A0_v:.3f} E, <i>A</i><sub>0</sub>/<i>m</i> = {rho_0:.3f}
+            Active Parameters: <i>&lambda;</i> = {lam_v:.2f} cust/s, <i>m</i> = {c_v_str}, <i>&mu;</i> = {mu_v:.2f} cust/s,
+            Offered Traffic <i>A</i><sub>0</sub> = {A0_str} E, <i>A</i><sub>0</sub>/<i>m</i> = {rho_0_str}
         </div>
 
         <h2>1. Definition and Physical Interpretation</h2>
@@ -1141,22 +1424,23 @@ def generate_theory_html(
             The average traffic over an observation interval <i>T</i> and its asymptotic time-average limit <i>A</i> are defined as:
         </p>
         {eq1}
+        {eq2}
         <p>
             <b>Stability of Systems with Unlimited Waiting Space (<i>&#8499;</i>/<i>&#8499;</i>/<i>m</i> and <i>&#119970;</i>/<i>&#119970;</i>/<i>m</i>).</b>
             When the waiting space is unlimited, no customers are rejected (<i>&lambda;<sub>p</sub></i> = 0, <i>A<sub>s</sub></i> = <i>A</i><sub>0</sub>).
             The geometric series in the normalization constant <i>P</i><sub>0</sub> converges if and only if the offered traffic
             <i>A</i><sub>0</sub> is strictly less than the number of servers <i>m</i>:
         </p>
-        {eq2}
+        {eq3}
+        {eq4}
         <p>
             <b>Systems with Limited Waiting Space (<i>&#8499;</i>/<i>&#8499;</i>/1/<i>L</i> and <i>&#8499;</i>/<i>&#8499;</i>/<i>m</i>/0).</b>
             A finite-state Markov chain with limited queue size <i>L</i> &lt; &infin; is <i>always stable</i> for any <i>A</i><sub>0</sub> &gt; 0.
-            However, when <i>A</i><sub>0</sub> &gt; <i>m</i>, it is impossible to dimension the queue size <i>L</i> to achieve an arbitrarily
-            small blocking probability <i>&pi;<sub>p</sub></i>, because as <i>L</i> &rarr; &infin; the blocking probability converges to a
-            strictly positive asymptote:
+            However, when <i>A</i><sub>0</sub> &gt; <i>m</i>, as <i>L</i> &rarr; &infin; the blocking probability converges to:
         </p>
-        {eq3}
-        {params_eq1_eq3}
+        {eq5}
+        {eq6}
+        {params_eq1_eq6}
 
         <h2>3. Theoretical Properties and Queueing Analysis</h2>
         <ul>
@@ -1165,25 +1449,21 @@ def generate_theory_html(
 
         <h2>4. Worked Numerical Example</h2>
         <div class="example-box">
-            <p class="example-title">Example 1 (Stability Evaluation under Active Parameters: &lambda; = {lam_v:.2f} cust/s, m = {c_v}, &mu; = {mu_v:.2f} cust/s)</p>
+            <p class="example-title">Example 1 (Stability Evaluation under Active Parameters: &lambda; = {lam_v:.2f} cust/s, m = {c_v_str}, &mu; = {mu_v:.2f} cust/s)</p>
             <ol>
-                <li><b>Offered Traffic <i>A</i><sub>0</sub> and Ratio <i>A</i><sub>0</sub>/<i>m</i> (Eq. 2):</b>
-                    <br><i>A</i><sub>0</sub> = <i>&lambda;&vartheta;&#772;</i> = {lam_v:.2f} / {mu_v:.2f} = <b>{A0_v:.4f} E</b>, &nbsp;&nbsp;
-                    <i>A</i><sub>0</sub> / <i>m</i> = {A0_v:.4f} / {c_v} = <b>{rho_0:.4f}</b>.</li>
-                <li><b>Unlimited Queue Assessment (Eq. 2):</b>
-                    {f"<br>Since <i>A</i><sub>0</sub> = {A0_v:.4f} &lt; <i>m</i> = {c_v} (<i>&rho;</i> = {rho_0:.4f} &lt; 1), an unlimited-queue system is <b>ergodic and stable</b> (for <i>m</i> = 1, the empty-system probability is <i>P</i><sub>0</sub> = 1 &minus; <i>&rho;</i> = <b>{1.0 - rho_0:.4f}</b>)." if rho_0 < 1.0 else f"<br>Because <i>A</i><sub>0</sub> = {A0_v:.4f} &ge; <i>m</i> = {c_v} (<i>A</i><sub>0</sub>/<i>m</i> = {rho_0:.4f} &ge; 1), an unlimited-queue system is <b>unstable</b>: the limit <i>A</i> = lim<sub><i>T</i>&rarr;&infin;</sub> <i>I</i>(<i>T</i>) does not exist and <i>k</i>(<i>t</i>) grows without bound."}</li>
-                <li><b>Asymptotic Blocking Floor for Finite Queue <i>L</i> (Eq. 3):</b>
-                    {f"<br>Because <i>A</i><sub>0</sub> &gt; <i>m</i>, even if the finite waiting space <i>L</i> is made arbitrarily large (<i>L</i> &rarr; &infin;), the blocking probability cannot be reduced below (<i>A</i><sub>0</sub> &minus; <i>m</i>)/<i>A</i><sub>0</sub> = ({A0_v:.4f} &minus; {c_v}) / {A0_v:.4f} = <b>{min_loss_frac:.4f}</b> ({min_loss_frac*100:.2f}%)." if rho_0 > 1.0 else f"<br>Since <i>A</i><sub>0</sub> &le; <i>m</i>, lim<sub><i>L</i>&rarr;&infin;</sub> <i>&pi;<sub>p</sub></i> = 0, so any desired blocking probability <i>&pi;<sub>p</sub></i> &gt; 0 can be achieved by choosing a sufficiently large queue size <i>L</i>."}</li>
+                <li>{step1_html}</li>
+                <li><b>Unlimited Queue Assessment (Eq. 4):</b>{step2_html}</li>
+                <li><b>Asymptotic Blocking Floor for Finite Queue <i>L</i> (Eqs. 5&ndash;6):</b>{step3_html}</li>
             </ol>
         </div>
 
         <h2>5. Summary of Stability Quantities</h2>
         <table class="book-table">
             <tr><th>Quantity</th><th>Course Symbol</th><th>Analytical Formula</th><th>Active Value</th></tr>
-            <tr><td>Offered Traffic</td><td><i>A</i><sub>0</sub></td><td><i>&lambda;&vartheta;&#772;</i> = <i>&lambda;</i> / <i>&mu;</i></td><td>{A0_v:.4f} E</td></tr>
-            <tr><td>Number of Servers</td><td><i>m</i></td><td>Configured server count</td><td>{c_v}</td></tr>
-            <tr><td>Offered Load per Server</td><td><i>A</i><sub>0</sub> / <i>m</i></td><td><i>&lambda;</i> / (<i>m&mu;</i>)</td><td>{rho_0:.4f} ({'Stable for L=&infin;' if rho_0 < 1.0 else 'Unstable for L=&infin;'})</td></tr>
-            <tr class="bottom-rule"><td>Asymptotic Blocking Floor (<i>L</i>&rarr;&infin;)</td><td>lim<sub><i>L</i>&rarr;&infin;</sub> <i>&pi;<sub>p</sub></i></td><td>max(0, (<i>A</i><sub>0</sub> &minus; <i>m</i>)/<i>A</i><sub>0</sub>)</td><td>{min_loss_frac*100:.2f}%</td></tr>
+            <tr><td>Offered Traffic</td><td><i>A</i><sub>0</sub></td><td><i>&lambda;&vartheta;&#772;</i> = <i>&lambda;</i> / <i>&mu;</i></td><td>{A0_str} E</td></tr>
+            <tr><td>Number of Servers</td><td><i>m</i></td><td>Configured server count</td><td>{c_v_str}</td></tr>
+            <tr><td>Offered Load per Server</td><td><i>A</i><sub>0</sub> / <i>m</i></td><td><i>&lambda;</i> / (<i>m&mu;</i>)</td><td>{rho_0_str} ({status_note})</td></tr>
+            <tr class="bottom-rule"><td>Asymptotic Blocking Floor (<i>L</i>&rarr;&infin;)</td><td>lim<sub><i>L</i>&rarr;&infin;</sub> <i>&pi;<sub>p</sub></i></td><td>max(0, (<i>A</i><sub>0</sub> &minus; <i>m</i>)/<i>A</i><sub>0</sub>)</td><td>{floor_str}</td></tr>
         </table>
         """
         return title, _format_theory_html(html)
@@ -1195,7 +1475,7 @@ def generate_theory_html(
         m_stats = engine.get_metrics() if (engine is not None and hasattr(engine, "get_metrics")) else {}
         lam_val = sys_lam
         mu_val = sys_mu
-        vartheta_bar = 1.0 / max(1e-6, mu_val)
+        vartheta_bar = (1.0 / mu_val) if mu_val > 0 else float("inf")
         c_val = sys_c
         K_val = engine.K if engine is not None else float("inf")
         prio_on = bool(engine and getattr(engine, "priority_enabled", False))
@@ -1212,10 +1492,13 @@ def generate_theory_html(
         )
 
         theo = {}
-        model_tag = "G/G/m"
+        model_tag = "G/G/&infin;" if math.isinf(c_val) else "G/G/m"
         if lam_val > 0 and mu_val > 0:
             if service_is_exponential and all_arr_exponential and (not prio_on or math.isinf(K_val)):
-                if math.isinf(K_val):
+                if math.isinf(c_val):
+                    theo = TheoreticalModels.solve_mmc_infinite(lam_val, mu_val, c_val)
+                    model_tag = "M/M/&infin;"
+                elif math.isinf(K_val):
                     theo = TheoreticalModels.solve_mmc_infinite(lam_val, mu_val, c_val)
                     model_tag = f"M/M/{c_val}"
                 else:
@@ -1233,6 +1516,7 @@ def generate_theory_html(
                 model_tag = f"M/{engine.service_dist.kendall_symbol()}/1"
 
         is_unstable = bool(theo and theo.get("unstable", False))
+        c_val_str = "&infin;" if math.isinf(c_val) else str(c_val)
         sim_T = m_stats.get("T", 0.0) if m_stats else 0.0
         has_sim_data = (engine is not None and getattr(engine, "current_time", 0.0) > 0.01 and m_stats.get("arrived", 0) > 0)
 
@@ -1240,15 +1524,26 @@ def generate_theory_html(
         # Topic 7: Server Utilization (rho) and Traffic Definitions (A_0, A_s, A_p)
         # ---------------------------------------------------------------
         if topic_index == 7:
-            A0_val = lam_val * vartheta_bar
-            rho_offered_ratio = A0_val / c_val
+            if math.isinf(vartheta_bar):
+                A0_val = float("inf")
+                rho_offered_ratio = float("inf")
+            elif math.isinf(c_val):
+                A0_val = lam_val * vartheta_bar
+                rho_offered_ratio = 0.0
+            else:
+                A0_val = lam_val * vartheta_bar
+                rho_offered_ratio = A0_val / c_val
             rho_sim = m_stats.get("rho", 0.0)
             pi_p_theo = theo.get("p_loss", 0.0) if theo else 0.0
 
-            if is_unstable:
+            if is_unstable or math.isinf(rho_offered_ratio):
                 rho_theo_val = 1.0
-                As_theo_val = float(c_val)
+                As_theo_val = float(c_val) if not math.isinf(c_val) else float("inf")
                 rho_theo_display = "1.0000 (Saturated)"
+            elif math.isinf(c_val):
+                rho_theo_val = 0.0
+                As_theo_val = A0_val
+                rho_theo_display = "0.0000 (Ample Servers m = ∞)"
             elif not theo:
                 rho_theo_val = min(1.0, rho_offered_ratio)
                 As_theo_val = rho_theo_val * c_val
@@ -1259,22 +1554,42 @@ def generate_theory_html(
                 rho_theo_display = f"{rho_theo_val:.4f}"
 
             eq1 = latex_eq_row(
-                r"A_0 = \lambda\,\overline{\vartheta} = \frac{\lambda}{\mu}, \qquad A_s = \lambda_s\,\overline{\vartheta} = (1 - \pi_p)A_0, \qquad A_p = \lambda_p\,\overline{\vartheta} = \pi_p A_0, \qquad A_0 = A_s + A_p",
+                r"A_0 = \lambda\,\overline{\vartheta} = \frac{\lambda}{\mu}",
                 eq_num=1,
                 zoom_factor=zoom_factor,
             )
             eq2 = latex_eq_row(
-                r"\rho = \frac{A_s}{m} = \frac{(1 - \pi_p)A_0}{m} \quad (0 \leq \rho \leq 1), \qquad \rho^{(\text{lossless})} = \frac{A_0}{m} = \frac{\lambda}{m\mu}",
+                r"A_s = \lambda_s\,\overline{\vartheta} = (1 - \pi_p)A_0",
                 eq_num=2,
                 zoom_factor=zoom_factor,
             )
             eq3 = latex_eq_row(
-                r"\hat{\rho}_{\mathrm{sim}} = \frac{1}{m\,T} \sum_{i=1}^{m} B_i(T) = \frac{B_{\mathrm{total}}(T)}{m\,T}",
+                r"A_p = \lambda_p\,\overline{\vartheta} = \pi_p A_0",
                 eq_num=3,
                 zoom_factor=zoom_factor,
             )
+            eq4 = latex_eq_row(
+                r"A_0 = A_s + A_p",
+                eq_num=4,
+                zoom_factor=zoom_factor,
+            )
+            eq5 = latex_eq_row(
+                r"\rho = \frac{A_s}{m} = \frac{(1 - \pi_p)A_0}{m} \quad (0 \leq \rho \leq 1)",
+                eq_num=5,
+                zoom_factor=zoom_factor,
+            )
+            eq6 = latex_eq_row(
+                r"\rho^{(\text{lossless})} = \frac{A_0}{m} = \frac{\lambda}{m\mu}",
+                eq_num=6,
+                zoom_factor=zoom_factor,
+            )
+            eq7 = latex_eq_row(
+                r"\hat{\rho}_{\mathrm{sim}} = \frac{1}{m\,T} \sum_{i=1}^{m} B_i(T) = \frac{B_{\mathrm{total}}(T)}{m\,T}",
+                eq_num=7,
+                zoom_factor=zoom_factor,
+            )
 
-            params_eq1_eq3 = where_list([
+            params_eq1_eq7 = where_list([
                 ("<i>&lambda;</i>, <i>&lambda;<sub>s</sub></i>, <i>&lambda;<sub>p</sub></i>", "Average arrival rate offered to the system (<i>&lambda;</i>), average rate of customers entering the system (<i>&lambda;<sub>s</sub></i> = (1 &minus; <i>&pi;<sub>p</sub></i>)<i>&lambda;</i>), and average rate of rejected customers (<i>&lambda;<sub>p</sub></i> = <i>&pi;<sub>p</sub>&lambda;</i>), in customers per second (cust/s)."),
                 ("<i>&vartheta;&#772;</i> = 1 / <i>&mu;</i>", "Average service time of a generic customer, in seconds (s)."),
                 ("<i>A</i><sub>0</sub> = <i>&lambda;&vartheta;&#772;</i>", "<b>Traffic offered</b> to the system (average number of busy servers in a hypothetical system with infinite servers), in Erlangs (E)."),
@@ -1286,26 +1601,46 @@ def generate_theory_html(
                 ("<i>B<sub>i</sub></i>(<i>T</i>), <i>B</i><sub>total</sub>(<i>T</i>)", "Busy time of the <i>i</i>-th server and total busy time across all <i>m</i> servers during observation interval <i>T</i>, in seconds (s)."),
             ])
 
+            c_val_str = "&infin;" if math.isinf(c_val) else str(c_val)
             if has_sim_data:
-                b_tot = rho_sim * c_val * sim_T
-                emp_step = (
-                    f"<b>Empirical Simulator Evaluation (Eq. 3, Live Run at <i>T</i> = {sim_T:.2f} s):</b> "
-                    f"Over observation interval <i>T</i> = {sim_T:.2f} s across <i>m</i> = {c_val} server(s), total busy time is "
-                    f"<i>B</i><sub>total</sub>(<i>T</i>) = <b>{b_tot:.2f} s</b> out of <i>mT</i> = <b>{c_val*sim_T:.2f} s</b>: "
-                    f"<br><i>&rho;&#770;</i><sub>sim</sub> = {b_tot:.2f} / {c_val*sim_T:.2f} = <b>{rho_sim:.4f}</b> (carried traffic <i>A&#770;<sub>s</sub></i> = <i>m&rho;&#770;</i><sub>sim</sub> = <b>{c_val*rho_sim:.4f} E</b>)."
-                )
+                if math.isinf(c_val):
+                    b_tot = getattr(engine, 'retired_busy_time', 0.0) + sum(s.total_busy_time for s in getattr(engine, 'servers', []))
+                    for s in getattr(engine, 'servers', []):
+                        if s.is_busy and s.busy_start_time is not None:
+                            b_tot += (engine.current_time - s.busy_start_time)
+                    emp_step = (
+                        f"<b>Empirical Simulator Evaluation (Eq. 7, Live Run at <i>T</i> = {sim_T:.2f} s):</b> "
+                        f"With infinite servers <i>m</i> = &infin;, total cumulative busy time is "
+                        f"<i>B</i><sub>total</sub>(<i>T</i>) = <b>{b_tot:.2f} s</b> out of <i>mT</i> = <b>&infin;</b>: "
+                        f"<br><i>&rho;&#770;</i><sub>sim</sub> = <b>0.0000</b> (carried traffic <i>A&#770;<sub>s</sub></i> = <i>B</i><sub>total</sub>/<i>T</i> = {b_tot:.2f}/{sim_T:.2f} = <b>{(b_tot/sim_T):.4f} E</b>)."
+                    )
+                else:
+                    b_tot = rho_sim * c_val * sim_T
+                    emp_step = (
+                        f"<b>Empirical Simulator Evaluation (Eq. 7, Live Run at <i>T</i> = {sim_T:.2f} s):</b> "
+                        f"Over observation interval <i>T</i> = {sim_T:.2f} s across <i>m</i> = {c_val} server(s), total busy time is "
+                        f"<i>B</i><sub>total</sub>(<i>T</i>) = <b>{b_tot:.2f} s</b> out of <i>mT</i> = <b>{c_val*sim_T:.2f} s</b>: "
+                        f"<br><i>&rho;&#770;</i><sub>sim</sub> = {b_tot:.2f} / {c_val*sim_T:.2f} = <b>{rho_sim:.4f}</b> (carried traffic <i>A&#770;<sub>s</sub></i> = <i>m&rho;&#770;</i><sub>sim</sub> = <b>{c_val*rho_sim:.4f} E</b>)."
+                    )
             else:
                 ref_T = 100.0
-                ref_B = round(rho_theo_val * c_val * ref_T, 2)
-                emp_step = (
-                    f"<b>Empirical Simulator Evaluation (Eq. 3, Illustrative Observation Interval <i>T</i> = {ref_T:.1f} s):</b> "
-                    f"Suppose over <i>T</i> = {ref_T:.1f} s the <i>m</i> = {c_val} server(s) accumulate <i>B</i><sub>total</sub>(<i>T</i>) = {ref_B:.2f} s of busy time. "
-                    f"Then Eq. (3) gives: <br><i>&rho;&#770;</i><sub>sim</sub> = {ref_B:.2f} / ({c_val} &times; {ref_T:.1f}) = <b>{ref_B/(c_val*ref_T):.4f}</b>."
-                )
+                if math.isinf(c_val):
+                    emp_step = (
+                        f"<b>Empirical Simulator Evaluation (Eq. 7, Illustrative Observation Interval <i>T</i> = {ref_T:.1f} s):</b> "
+                        f"With infinite servers <i>m</i> = &infin;, total available capacity is <i>mT</i> = &infin;. "
+                        f"Per-server utilization is <i>&rho;&#770;</i><sub>sim</sub> = <b>0.0000</b> (all offered traffic is carried without queueing)."
+                    )
+                else:
+                    ref_B = round(rho_theo_val * c_val * ref_T, 2)
+                    emp_step = (
+                        f"<b>Empirical Simulator Evaluation (Eq. 7, Illustrative Observation Interval <i>T</i> = {ref_T:.1f} s):</b> "
+                        f"Suppose over <i>T</i> = {ref_T:.1f} s the <i>m</i> = {c_val} server(s) accumulate <i>B</i><sub>total</sub>(<i>T</i>) = {ref_B:.2f} s of busy time. "
+                        f"Then Eq. (7) gives: <br><i>&rho;&#770;</i><sub>sim</sub> = {ref_B:.2f} / ({c_val} &times; {ref_T:.1f}) = <b>{ref_B/(c_val*ref_T):.4f}</b>."
+                    )
 
             html = f"""{css}
             <h1>Offered Traffic (<i>A</i><sub>0</sub>), Carried Traffic (<i>A<sub>s</sub></i>), and Server Utilization (<i>&rho;</i>)</h1>
-            <div class="meta-line">Active Model: {model_tag} &nbsp;|&nbsp; Parameters: <i>&lambda;</i> = {lam_val:.2f} cust/s, <i>&vartheta;&#772;</i> = {vartheta_bar:.4f} s, <i>m</i> = {c_val}</div>
+            <div class="meta-line">Active Model: {model_tag} &nbsp;|&nbsp; Parameters: <i>&lambda;</i> = {lam_val:.2f} cust/s, <i>&vartheta;&#772;</i> = {f'{vartheta_bar:.4f} s' if not math.isinf(vartheta_bar) else '&infin; s'}, <i>m</i> = {c_val_str}</div>
 
             <h2>1. Definition and Physical Interpretation</h2>
             <p class="def-paragraph">
@@ -1328,15 +1663,19 @@ def generate_theory_html(
                 The offered traffic <i>A</i><sub>0</sub>, carried traffic <i>A<sub>s</sub></i>, and lost traffic <i>A<sub>p</sub></i> (all expressed in Erlangs, E) satisfy:
             </p>
             {eq1}
+            {eq2}
+            {eq3}
+            {eq4}
             <p>
                 Dividing the carried traffic <i>A<sub>s</sub></i> by the number of servers <i>m</i> yields the server utilization <i>&rho;</i>:
             </p>
-            {eq2}
+            {eq5}
+            {eq6}
             <p>
                 Over a simulated observation interval <i>T</i>, empirical server utilization is computed from the server busy times <i>B<sub>i</sub></i>(<i>T</i>):
             </p>
-            {eq3}
-            {params_eq1_eq3}
+            {eq7}
+            {params_eq1_eq7}
 
             <h2>3. Theoretical Properties and Queueing Analysis</h2>
             <ul>
@@ -1350,9 +1689,9 @@ def generate_theory_html(
                 <ol>
                     <li><b>Offered Traffic (Eq. 1):</b> With <i>&lambda;</i> = {lam_val:.2f} cust/s and <i>&vartheta;&#772;</i> = 1/{mu_val:.2f} = {vartheta_bar:.4f} s:
                         <br><i>A</i><sub>0</sub> = <i>&lambda;&vartheta;&#772;</i> = {lam_val:.2f} &times; {vartheta_bar:.4f} = <b>{A0_val:.4f} E</b>, &nbsp;&nbsp;
-                        <i>A</i><sub>0</sub> / <i>m</i> = {A0_val:.4f} / {c_val} = <b>{rho_offered_ratio:.4f}</b>.</li>
-                    <li><b>Carried Traffic and Server Utilization (Eqs. 1&ndash;2):</b>
-                        {f"With theoretical blocking probability <i>&pi;<sub>p</sub></i> = {pi_p_theo:.4f}:<br><i>A<sub>s</sub></i> = (1 &minus; <i>&pi;<sub>p</sub></i>)<i>A</i><sub>0</sub> = (1 &minus; {pi_p_theo:.4f}) &times; {A0_val:.4f} = <b>{As_theo_val:.4f} E</b>, &nbsp;&nbsp; <i>&rho;</i> = <i>A<sub>s</sub></i> / <i>m</i> = {As_theo_val:.4f} / {c_val} = <b>{rho_theo_val:.4f}</b>." if theo and not is_unstable else f"Under the active regime ({model_tag}), carried server utilization is <i>&rho;</i> = <b>{rho_theo_val:.4f}</b> (<i>A<sub>s</sub></i> = <b>{As_theo_val:.4f} E</b>)."}</li>
+                        <i>A</i><sub>0</sub> / <i>m</i> = {A0_val:.4f} / {c_val_str} = <b>{rho_offered_ratio:.4f}</b>.</li>
+                    <li><b>Carried Traffic and Server Utilization (Eqs. 2 &amp; 5):</b>
+                        {f"With theoretical blocking probability <i>&pi;<sub>p</sub></i> = {pi_p_theo:.4f}:<br><i>A<sub>s</sub></i> = (1 &minus; <i>&pi;<sub>p</sub></i>)<i>A</i><sub>0</sub> = (1 &minus; {pi_p_theo:.4f}) &times; {A0_val:.4f} = <b>{As_theo_val:.4f} E</b>, &nbsp;&nbsp; <i>&rho;</i> = <i>A<sub>s</sub></i> / <i>m</i> = {As_theo_val:.4f} / {c_val_str} = <b>{rho_theo_val:.4f}</b>." if theo and not is_unstable else f"Under the active regime ({model_tag}), carried server utilization is <i>&rho;</i> = <b>{rho_theo_val:.4f}</b> (<i>A<sub>s</sub></i> = <b>{As_theo_val:.4f} E</b>)."}</li>
                     <li>{emp_step}</li>
                 </ol>
             </div>
@@ -1375,7 +1714,7 @@ def generate_theory_html(
             A_val = theo.get("L") if theo else None
             Ac_val = theo.get("Lq") if theo else None
             rho_theo = theo.get("rho", 0.0) if theo else 0.0
-            As_val = c_val * rho_theo
+            As_val = (A_val if A_val is not None else 0.0) if math.isinf(c_val) else (c_val * rho_theo)
             A_sim = m_stats.get("L", 0.0)
             littles_A = m_stats.get("littles_L", 0.0)
 
@@ -1389,22 +1728,32 @@ def generate_theory_html(
                 A_theo_str = f"{A_val:.4f} E (cust)"
 
             eq1 = latex_eq_row(
-                r"I(T) = \frac{1}{T} \int_{0}^{T} k(t)\,\mathrm{d}t, \qquad A = \lim_{T \to \infty} I(T) = \langle k(t) \rangle = \sum_{k} k\,P_k = A_c + A_s",
+                r"I(T) = \frac{1}{T} \int_{0}^{T} k(t)\,\mathrm{d}t",
                 eq_num=1,
                 zoom_factor=zoom_factor,
             )
             eq2 = latex_eq_row(
-                r"A^{(M/M/m)} = A_0 + \mathcal{C}(m, A_0)\,\frac{A_0}{m - A_0}, \qquad A^{(M/M/1)} = \frac{\rho}{1 - \rho} = \frac{A_0}{1 - A_0} \quad (\rho < 1)",
+                r"A = \lim_{T \to \infty} I(T) = \langle k(t) \rangle = \sum_{k} k\,P_k = A_c + A_s",
                 eq_num=2,
                 zoom_factor=zoom_factor,
             )
             eq3 = latex_eq_row(
-                r"I_{\mathrm{sim}}(T) = \frac{1}{T} \int_{0}^{T} k(t)\,\mathrm{d}t = \frac{1}{T} \sum_{k=0}^{k_{\max}} k\,\Delta t_k = \sum_{k=0}^{k_{\max}} k\,\hat{P}_k",
+                r"A^{(M/M/m)} = A_0 + \mathcal{C}(m, A_0)\,\frac{A_0}{m - A_0}",
                 eq_num=3,
                 zoom_factor=zoom_factor,
             )
+            eq4 = latex_eq_row(
+                r"A^{(M/M/1)} = \frac{\rho}{1 - \rho} = \frac{A_0}{1 - A_0} \quad (\rho < 1)",
+                eq_num=4,
+                zoom_factor=zoom_factor,
+            )
+            eq5 = latex_eq_row(
+                r"I_{\mathrm{sim}}(T) = \frac{1}{T} \int_{0}^{T} k(t)\,\mathrm{d}t = \frac{1}{T} \sum_{k=0}^{k_{\max}} k\,\Delta t_k = \sum_{k=0}^{k_{\max}} k\,\hat{P}_k",
+                eq_num=5,
+                zoom_factor=zoom_factor,
+            )
 
-            params_eq1_eq3 = where_list([
+            params_eq1_eq5 = where_list([
                 ("<i>k</i>(<i>t</i>)", "Traffic in the system at time <i>t</i>, defined as the number of customers inside the system at time <i>t</i> (labeled <i>N</i>(<i>t</i>) in the simulator)."),
                 ("<i>I</i>(<i>T</i>)", "Average traffic in the system over observation interval <i>T</i>, in Erlangs (E) (or customers)."),
                 ("<i>A</i> = &langle;<i>k</i>(<i>t</i>)&rangle;", "<b>Average traffic intensity in the system</b> (time-average number of customers in the system, labeled <i>L</i> in the simulator table), in Erlangs (E)."),
@@ -1416,14 +1765,14 @@ def generate_theory_html(
 
             if A_val is not None and not is_unstable and not math.isinf(A_val):
                 ana_step = (
-                    f"<b>Analytical Calculation ({model_tag}, Eqs. 1&ndash;2):</b> "
-                    f"For <i>&lambda;</i> = {lam_val:.2f} cust/s, <i>&mu;</i> = {mu_val:.2f} cust/s, and <i>m</i> = {c_val}, "
+                    f"<b>Analytical Calculation ({model_tag}, Eqs. 2&ndash;3):</b> "
+                    f"For <i>&lambda;</i> = {lam_val:.2f} cust/s, <i>&mu;</i> = {mu_val:.2f} cust/s, and <i>m</i> = {c_val_str}, "
                     f"the average number of customers being served is <i>A<sub>s</sub></i> = <b>{As_val:.4f} E</b> and the average number waiting in the queue is <i>A<sub>c</sub></i> = <b>{Ac_val:.4f} E</b>. "
-                    f"By Eq. (1): <br><i>A</i> = <i>A<sub>c</sub></i> + <i>A<sub>s</sub></i> = {Ac_val:.4f} + {As_val:.4f} = <b>{A_val:.4f} E (cust)</b>."
+                    f"By Eq. (2): <br><i>A</i> = <i>A<sub>c</sub></i> + <i>A<sub>s</sub></i> = {Ac_val:.4f} + {As_val:.4f} = <b>{A_val:.4f} E (cust)</b>."
                 )
             else:
                 ana_step = (
-                    "<b>Analytical Calculation (Reference <i>&#8499;</i>/<i>&#8499;</i>/1 Benchmark at <i>&rho;</i> = <i>A</i><sub>0</sub> = 0.80 E, Eq. 2):</b> "
+                    "<b>Analytical Calculation (Reference <i>&#8499;</i>/<i>&#8499;</i>/1 Benchmark at <i>&rho;</i> = <i>A</i><sub>0</sub> = 0.80 E, Eq. 4):</b> "
                     "With <i>A<sub>s</sub></i> = <i>&rho;</i> = 0.80 E and <i>A<sub>c</sub></i> = <i>&rho;</i><sup>2</sup>/(1 &minus; <i>&rho;</i>) = 3.20 E: "
                     "<br><i>A</i> = <i>A<sub>s</sub></i> + <i>A<sub>c</sub></i> = <i>&rho;</i> / (1 &minus; <i>&rho;</i>) = 0.80 / (1 &minus; 0.80) = <b>4.0000 E (cust)</b>."
                 )
@@ -1431,16 +1780,16 @@ def generate_theory_html(
             if has_sim_data:
                 area_k = A_sim * sim_T
                 emp_step = (
-                    f"<b>Empirical Simulator Evaluation (Eq. 3, Live Run at <i>T</i> = {sim_T:.2f} s):</b> "
+                    f"<b>Empirical Simulator Evaluation (Eq. 5, Live Run at <i>T</i> = {sim_T:.2f} s):</b> "
                     f"Integrating <i>k</i>(<i>t</i>) over [0, {sim_T:.2f} s] gives &int; <i>k</i>(<i>t</i>) d<i>t</i> = &sum; <i>k</i>&Delta;<i>t<sub>k</sub></i> = <b>{area_k:.2f} cust&middot;s</b>. "
                     f"Dividing by <i>T</i> = {sim_T:.2f} s yields: "
                     f"<br><i>I</i><sub>sim</sub>(<i>T</i>) = {area_k:.2f} / {sim_T:.2f} = <b>{A_sim:.4f} E (cust)</b>."
                 )
             else:
                 emp_step = (
-                    "<b>Empirical Simulator Evaluation (Eq. 3, Sample-Path Illustration from Course Slides):</b> "
+                    "<b>Empirical Simulator Evaluation (Eq. 5, Sample-Path Illustration from Course Slides):</b> "
                     "Consider an observation window <i>T</i> = 10.0 s in which <i>k</i>(<i>t</i>) = 0 for 3.0 s, <i>k</i>(<i>t</i>) = 1 for 4.0 s, and <i>k</i>(<i>t</i>) = 2 for 3.0 s. "
-                    "Then Eq. (3) gives: <br><i>I</i><sub>sim</sub>(<i>T</i>) = (0&times;3.0 + 1&times;4.0 + 2&times;3.0) / 10.0 = 10.0 / 10.0 = <b>1.0000 E (cust)</b>."
+                    "Then Eq. (5) gives: <br><i>I</i><sub>sim</sub>(<i>T</i>) = (0&times;3.0 + 1&times;4.0 + 2&times;3.0) / 10.0 = 10.0 / 10.0 = <b>1.0000 E (cust)</b>."
                 )
 
             html = f"""{css}
@@ -1467,15 +1816,17 @@ def generate_theory_html(
                 The sample-path average traffic <i>I</i>(<i>T</i>) over interval <i>T</i> and its ergodic steady-state limit <i>A</i> are:
             </p>
             {eq1}
+            {eq2}
             <p>
                 For Markovian <i>&#8499;</i>/<i>&#8499;</i>/<i>m</i> and <i>&#8499;</i>/<i>&#8499;</i>/1 systems with unlimited waiting space (<i>&rho;</i> = <i>A</i><sub>0</sub>/<i>m</i> &lt; 1):
             </p>
-            {eq2}
+            {eq3}
+            {eq4}
             <p>
                 In the discrete-event simulator, <i>I</i><sub>sim</sub>(<i>T</i>) is evaluated continuously by integrating <i>k</i>(<i>t</i>) over [0, <i>T</i>]:
             </p>
-            {eq3}
-            {params_eq1_eq3}
+            {eq5}
+            {params_eq1_eq5}
 
             <h2>3. Theoretical Properties and Queueing Analysis</h2>
             <ul>
@@ -1510,7 +1861,7 @@ def generate_theory_html(
             Ac_sim = m_stats.get("Lq", 0.0)
             littles_Ac = m_stats.get("littles_Lq", 0.0)
             A0_val = lam_val * vartheta_bar
-            rho_offered = A0_val / c_val
+            rho_offered = 0.0 if math.isinf(c_val) else (A0_val / c_val)
 
             if is_unstable:
                 Ac_theo_str = "&infin; (Unstable)"
@@ -1522,22 +1873,32 @@ def generate_theory_html(
                 Ac_theo_str = f"{Ac_val:.4f} E (cust)"
 
             eq1 = latex_eq_row(
-                r"A_c = \sum_{k=m}^{\infty} (k - m)\,P_k = \mathcal{C}(m, A_0)\,\frac{A_0}{m - A_0}, \qquad \pi_r = \mathrm{Pr}\{k \geq m\} = \frac{A_0^m}{m!}\,\frac{m}{m - A_0}\,P_0 = \mathcal{C}(m, A_0)",
+                r"\pi_r = \mathrm{Pr}\{k \geq m\} = \frac{A_0^m}{m!}\,\frac{m}{m - A_0}\,P_0 = \mathcal{C}(m, A_0)",
                 eq_num=1,
                 zoom_factor=zoom_factor,
             )
             eq2 = latex_eq_row(
-                r"A_c^{(M/M/1)} = \mathcal{C}(1, A_0)\,\frac{A_0}{1 - A_0} = \frac{\rho^2}{1 - \rho}, \qquad A_c^{(M/M/1/L)} = \frac{-(L + 1)A_0^L(1 - A_0) + 1 - A_0^{L+1}}{(1 - A_0)^2}\,A_0^2 P_0",
+                r"A_c = \sum_{k=m}^{\infty} (k - m)\,P_k = \mathcal{C}(m, A_0)\,\frac{A_0}{m - A_0}",
                 eq_num=2,
                 zoom_factor=zoom_factor,
             )
             eq3 = latex_eq_row(
-                r"\hat{A}_{c,\mathrm{sim}} = \frac{1}{T} \int_{0}^{T} \max\left(0,\,k(t) - m\right)\mathrm{d}t = \lambda_{s,\mathrm{sim}}\,\overline{\eta}_{\mathrm{sim}}",
+                r"A_c^{(M/M/1)} = \mathcal{C}(1, A_0)\,\frac{A_0}{1 - A_0} = \frac{\rho^2}{1 - \rho}",
                 eq_num=3,
                 zoom_factor=zoom_factor,
             )
+            eq4 = latex_eq_row(
+                r"A_c^{(M/M/1/L)} = \frac{-(L + 1)A_0^L(1 - A_0) + 1 - A_0^{L+1}}{(1 - A_0)^2}\,A_0^2 P_0",
+                eq_num=4,
+                zoom_factor=zoom_factor,
+            )
+            eq5 = latex_eq_row(
+                r"\hat{A}_{c,\mathrm{sim}} = \frac{1}{T} \int_{0}^{T} \max\left(0,\,k(t) - m\right)\mathrm{d}t = \lambda_{s,\mathrm{sim}}\,\overline{\eta}_{\mathrm{sim}}",
+                eq_num=5,
+                zoom_factor=zoom_factor,
+            )
 
-            params_eq1_eq3 = where_list([
+            params_eq1_eq5 = where_list([
                 ("<i>A<sub>c</sub></i>", "<b>Average number of customers waiting in the queue</b> (labeled <i>L<sub>q</sub></i> in the simulator), measured in Erlangs (E) or customers."),
                 ("<i>k</i>, <i>m</i>", "Total number of customers in the system (<i>k</i>) and number of servers (<i>m</i>); the number of waiting customers in state <i>k</i> &ge; <i>m</i> is (<i>k</i> &minus; <i>m</i>)."),
                 ("<i>P<sub>k</sub></i>, <i>P</i><sub>0</sub>", "Steady-state probability of state <i>k</i> and of the empty state <i>k</i> = 0."),
@@ -1548,24 +1909,31 @@ def generate_theory_html(
             ])
 
             if Ac_val is not None and not is_unstable and not math.isinf(Ac_val):
-                if math.isinf(K_val) and service_is_exponential and all_arr_exponential:
+                if math.isinf(c_val):
+                    ana_step = (
+                        f"<b>Analytical Calculation (M/M/&infin; Ample Servers, Eq. 2):</b> "
+                        f"With infinite servers (<i>m</i> = &infin;), arriving customers immediately enter service without waiting. "
+                        f"Therefore, the congestion probability is identically <i>&pi;<sub>r</sub></i> = <b>0.0000</b> and the average queue backlog is: "
+                        f"<br><i>A<sub>c</sub></i> = <b>0.0000 E (cust)</b>."
+                    )
+                elif math.isinf(K_val) and service_is_exponential and all_arr_exponential:
                     pc_val = theo.get("p_c", rho_offered)
                     ana_step = (
                         f"<b>Analytical Calculation ({model_tag}, Eqs. 1&ndash;2):</b> "
                         f"With offered traffic <i>A</i><sub>0</sub> = {A0_val:.4f} E and <i>m</i> = {c_val}, the Erlang-C congestion probability is "
-                        f"<i>&pi;<sub>r</sub></i> = <i>&#8493;</i>({c_val}, {A0_val:.4f}) = <b>{pc_val:.4f}</b>. Applying Eq. (1): "
+                        f"<i>&pi;<sub>r</sub></i> = <i>&#8493;</i>({c_val}, {A0_val:.4f}) = <b>{pc_val:.4f}</b>. Applying Eq. (2): "
                         f"<br><i>A<sub>c</sub></i> = <i>&#8493;</i>(<i>m</i>, <i>A</i><sub>0</sub>) &middot; <i>A</i><sub>0</sub> / (<i>m</i> &minus; <i>A</i><sub>0</sub>) = "
                         f"{pc_val:.4f} &times; {A0_val:.4f} / ({c_val} &minus; {A0_val:.4f}) = <b>{Ac_val:.4f} E (cust)</b>."
                     )
                 else:
                     ana_step = (
-                        f"<b>Analytical Calculation ({model_tag}, Eqs. 1&ndash;2):</b> "
+                        f"<b>Analytical Calculation ({model_tag}, Eq. 2):</b> "
                         f"Evaluating the queue backlog expectation for <i>A</i><sub>0</sub> = {A0_val:.4f} E and <i>m</i> = {c_val} gives: "
                         f"<br><i>A<sub>c</sub></i> = &sum;<sub><i>k</i>&ge;{c_val}</sub> (<i>k</i> &minus; {c_val})<i>P<sub>k</sub></i> = <b>{Ac_val:.4f} E (cust)</b>."
                     )
             else:
                 ana_step = (
-                    "<b>Analytical Calculation (Reference <i>&#8499;</i>/<i>&#8499;</i>/1 Benchmark at <i>&rho;</i> = <i>A</i><sub>0</sub> = 0.80 E, Eq. 2):</b> "
+                    "<b>Analytical Calculation (Reference <i>&#8499;</i>/<i>&#8499;</i>/1 Benchmark at <i>&rho;</i> = <i>A</i><sub>0</sub> = 0.80 E, Eq. 3):</b> "
                     "Since <i>&#8493;</i>(1, <i>A</i><sub>0</sub>) = <i>A</i><sub>0</sub> = <i>&rho;</i> = 0.80: "
                     "<br><i>A<sub>c</sub></i> = <i>&rho;</i><sup>2</sup> / (1 &minus; <i>&rho;</i>) = (0.80)<sup>2</sup> / (1 &minus; 0.80) = 0.64 / 0.20 = <b>3.2000 E (cust)</b>."
                 )
@@ -1573,16 +1941,16 @@ def generate_theory_html(
             if has_sim_data:
                 area_q = Ac_sim * sim_T
                 emp_step = (
-                    f"<b>Empirical Simulator Evaluation (Eq. 3, Live Run at <i>T</i> = {sim_T:.2f} s):</b> "
-                    f"Integrating max(0, <i>k</i>(<i>t</i>) &minus; {c_val}) over [0, {sim_T:.2f} s] gives cumulative waiting customer-seconds "
+                    f"<b>Empirical Simulator Evaluation (Eq. 5, Live Run at <i>T</i> = {sim_T:.2f} s):</b> "
+                    f"Integrating max(0, <i>k</i>(<i>t</i>) &minus; {c_val_str}) over [0, {sim_T:.2f} s] gives cumulative waiting customer-seconds "
                     f"<b>{area_q:.2f} cust&middot;s</b>. Dividing by <i>T</i> = {sim_T:.2f} s yields: "
                     f"<br><i>A&#770;</i><sub><i>c</i>,sim</sub> = {area_q:.2f} / {sim_T:.2f} = <b>{Ac_sim:.4f} E (cust)</b>."
                 )
             else:
                 emp_step = (
-                    "<b>Empirical Simulator Evaluation (Eq. 3, Sample-Path Illustration):</b> "
+                    "<b>Empirical Simulator Evaluation (Eq. 5, Sample-Path Illustration):</b> "
                     "Over an observation interval <i>T</i> = 10.0 s with <i>m</i> = 1 server, if max(0, <i>k</i>(<i>t</i>) &minus; 1) equals 0 for 6.0 s, "
-                    "1 for 3.0 s, and 2 for 1.0 s, then Eq. (3) yields: "
+                    "1 for 3.0 s, and 2 for 1.0 s, then Eq. (5) yields: "
                     "<br><i>A&#770;</i><sub><i>c</i>,sim</sub> = (0&times;6.0 + 1&times;3.0 + 2&times;1.0) / 10.0 = 5.0 / 10.0 = <b>0.5000 E (cust)</b>."
                 )
 
@@ -1607,19 +1975,23 @@ def generate_theory_html(
             <h2>2. Mathematical Formulation</h2>
             <p>
                 For an <i>&#8499;</i>/<i>&#8499;</i>/<i>m</i> system with unlimited waiting space (<i>&rho;</i> = <i>A</i><sub>0</sub>/<i>m</i> &lt; 1),
-                <i>A<sub>c</sub></i> and Erlang's C formula <i>&#8493;</i>(<i>m</i>, <i>A</i><sub>0</sub>) are given by:
+                Erlang's C formula <i>&#8493;</i>(<i>m</i>, <i>A</i><sub>0</sub>) and the queue length <i>A<sub>c</sub></i> are given by:
             </p>
             {eq1}
-            <p>
-                For a single-server system with unlimited waiting space (<i>&#8499;</i>/<i>&#8499;</i>/1, where <i>&#8493;</i>(1, <i>A</i><sub>0</sub>) = <i>A</i><sub>0</sub> = <i>&rho;</i>)
-                and with limited waiting space <i>L</i> (<i>&#8499;</i>/<i>&#8499;</i>/1/<i>L</i>, for <i>A</i><sub>0</sub> &ne; 1):
-            </p>
             {eq2}
+            <p>
+                For a single-server system with unlimited waiting space (<i>&#8499;</i>/<i>&#8499;</i>/1, where <i>&#8493;</i>(1, <i>A</i><sub>0</sub>) = <i>A</i><sub>0</sub> = <i>&rho;</i>):
+            </p>
+            {eq3}
+            <p>
+                and for a system with limited waiting space <i>L</i> (<i>&#8499;</i>/<i>&#8499;</i>/1/<i>L</i>, for <i>A</i><sub>0</sub> &ne; 1):
+            </p>
+            {eq4}
             <p>
                 In the discrete-event simulator, <i>A&#770;</i><sub><i>c</i>,sim</sub> is computed by integrating the instantaneous queue length max(0, <i>k</i>(<i>t</i>) &minus; <i>m</i>) over [0, <i>T</i>]:
             </p>
-            {eq3}
-            {params_eq1_eq3}
+            {eq5}
+            {params_eq1_eq5}
 
             <h2>3. Theoretical Properties and Queueing Analysis</h2>
             <ul>
@@ -1666,22 +2038,37 @@ def generate_theory_html(
                 delta_theo_str = f"{delta_val:.4f} s"
 
             eq1 = latex_eq_row(
-                r"\delta = \eta + \vartheta, \qquad \overline{\delta} = \overline{\eta} + \overline{\vartheta} = \frac{A}{\lambda_s} = \frac{A}{(1 - \pi_p)\lambda}",
+                r"\delta = \eta + \vartheta",
                 eq_num=1,
                 zoom_factor=zoom_factor,
             )
             eq2 = latex_eq_row(
-                r"\overline{\delta}^{(M/M/m)} = \overline{\vartheta} + \mathcal{C}(m, A_0)\,\frac{\overline{\vartheta}}{m - A_0}, \qquad \overline{\delta}^{(M/M/1)} = \frac{\overline{\vartheta}}{1 - \rho} = \frac{1}{\mu - \lambda}, \qquad f_{\delta}(t) = (\mu - \lambda)e^{-(\mu - \lambda)t}",
+                r"\overline{\delta} = \overline{\eta} + \overline{\vartheta} = \frac{A}{\lambda_s} = \frac{A}{(1 - \pi_p)\lambda}",
                 eq_num=2,
                 zoom_factor=zoom_factor,
             )
             eq3 = latex_eq_row(
-                r"\overline{\delta}_{\mathrm{sim}} = \frac{1}{d(T)} \sum_{n=1}^{d(T)} \delta_n = \frac{1}{d(T)} \sum_{n=1}^{d(T)} \left(t_{\mathrm{dep},n} - t_{\mathrm{arr},n}\right)",
+                r"\overline{\delta}^{(M/M/m)} = \overline{\vartheta} + \mathcal{C}(m, A_0)\,\frac{\overline{\vartheta}}{m - A_0}",
                 eq_num=3,
                 zoom_factor=zoom_factor,
             )
+            eq4 = latex_eq_row(
+                r"\overline{\delta}^{(M/M/1)} = \frac{\overline{\vartheta}}{1 - \rho} = \frac{1}{\mu - \lambda}",
+                eq_num=4,
+                zoom_factor=zoom_factor,
+            )
+            eq5 = latex_eq_row(
+                r"f_{\delta}(t) = (\mu - \lambda)e^{-(\mu - \lambda)t} \quad (t \geq 0)",
+                eq_num=5,
+                zoom_factor=zoom_factor,
+            )
+            eq6 = latex_eq_row(
+                r"\overline{\delta}_{\mathrm{sim}} = \frac{1}{d(T)} \sum_{n=1}^{d(T)} \delta_n = \frac{1}{d(T)} \sum_{n=1}^{d(T)} \left(t_{\mathrm{dep},n} - t_{\mathrm{arr},n}\right)",
+                eq_num=6,
+                zoom_factor=zoom_factor,
+            )
 
-            params_eq1_eq3 = where_list([
+            params_eq1_eq6 = where_list([
                 ("<i>&delta;</i> (<i>&delta;<sub>n</sub></i>)", "Time spent in the system (<b>sojourn time</b>) by a generic customer (or by the <i>n</i>-th customer that has left the system), in seconds (s)."),
                 ("<i>&delta;&#772;</i>", "<b>Average sojourn time</b> spent by a customer in the system (labeled <i>W</i> in the simulator), in seconds (s)."),
                 ("<i>&eta;</i>, <i>&eta;&#772;</i>", "Time spent in queue (waiting time) by a generic customer and its average value (labeled <i>W<sub>q</sub></i> in the simulator), in seconds (s)."),
@@ -1694,13 +2081,13 @@ def generate_theory_html(
 
             if delta_val is not None and not is_unstable and not math.isinf(delta_val):
                 ana_step = (
-                    f"<b>Analytical Calculation ({model_tag}, Eqs. 1&ndash;2):</b> "
+                    f"<b>Analytical Calculation ({model_tag}, Eqs. 2&ndash;3):</b> "
                     f"With average waiting time <i>&eta;&#772;</i> = {eta_val:.4f} s and average service time <i>&vartheta;&#772;</i> = 1/{mu_val:.2f} = {vartheta_bar:.4f} s, "
-                    f"Eq. (1) yields: <br><i>&delta;&#772;</i> = <i>&eta;&#772;</i> + <i>&vartheta;&#772;</i> = {eta_val:.4f} + {vartheta_bar:.4f} = <b>{delta_val:.4f} s</b>."
+                    f"Eq. (2) yields: <br><i>&delta;&#772;</i> = <i>&eta;&#772;</i> + <i>&vartheta;&#772;</i> = {eta_val:.4f} + {vartheta_bar:.4f} = <b>{delta_val:.4f} s</b>."
                 )
             else:
                 ana_step = (
-                    "<b>Analytical Calculation (Reference <i>&#8499;</i>/<i>&#8499;</i>/1 Benchmark at <i>&lambda;</i> = 0.80 cust/s, <i>&mu;</i> = 1.00 cust/s, Eq. 2):</b> "
+                    "<b>Analytical Calculation (Reference <i>&#8499;</i>/<i>&#8499;</i>/1 Benchmark at <i>&lambda;</i> = 0.80 cust/s, <i>&mu;</i> = 1.00 cust/s, Eq. 4):</b> "
                     "With <i>&vartheta;&#772;</i> = 1.00 s and <i>&rho;</i> = 0.80: "
                     "<br><i>&delta;&#772;</i> = <i>&vartheta;&#772;</i> / (1 &minus; <i>&rho;</i>) = 1.00 / (1 &minus; 0.80) = <b>5.0000 s</b> "
                     "(comprising <i>&eta;&#772;</i> = 4.0000 s waiting in queue plus <i>&vartheta;&#772;</i> = 1.0000 s being served)."
@@ -1709,16 +2096,16 @@ def generate_theory_html(
             if has_sim_data and served_cnt > 0:
                 tot_delta = delta_sim * served_cnt
                 emp_step = (
-                    f"<b>Empirical Simulator Evaluation (Eq. 3, Live Run with <i>d</i>(<i>T</i>) = {served_cnt} departed customers):</b> "
+                    f"<b>Empirical Simulator Evaluation (Eq. 6, Live Run with <i>d</i>(<i>T</i>) = {served_cnt} departed customers):</b> "
                     f"Summing the individual sojourn times <i>&delta;<sub>n</sub></i> across all <i>d</i>(<i>T</i>) = {served_cnt} departures gives "
                     f"&sum; <i>&delta;<sub>n</sub></i> = <b>{tot_delta:.2f} s</b>. Dividing by <i>d</i>(<i>T</i>) yields: "
                     f"<br><i>&delta;&#772;</i><sub>sim</sub> = {tot_delta:.2f} / {served_cnt} = <b>{delta_sim:.4f} s</b>."
                 )
             else:
                 emp_step = (
-                    "<b>Empirical Simulator Evaluation (Eq. 3, Illustrative Sample of <i>d</i>(<i>T</i>) = 3 Departures):</b> "
+                    "<b>Empirical Simulator Evaluation (Eq. 6, Illustrative Sample of <i>d</i>(<i>T</i>) = 3 Departures):</b> "
                     "Suppose the first <i>d</i>(<i>T</i>) = 3 customers experience sojourn times <i>&delta;</i><sub>1</sub> = 0.90 s, <i>&delta;</i><sub>2</sub> = 1.40 s, and <i>&delta;</i><sub>3</sub> = 1.50 s. "
-                    "By Eq. (3): <br><i>&delta;&#772;</i><sub>sim</sub> = (0.90 + 1.40 + 1.50) / 3 = 3.80 / 3 = <b>1.2667 s</b>."
+                    "By Eq. (6): <br><i>&delta;&#772;</i><sub>sim</sub> = (0.90 + 1.40 + 1.50) / 3 = 3.80 / 3 = <b>1.2667 s</b>."
                 )
 
             html = f"""{css}
@@ -1742,15 +2129,21 @@ def generate_theory_html(
                 Taking the expectation of <i>&delta;</i> = <i>&eta;</i> + <i>&vartheta;</i> and applying Little's Law (<i>A</i> = <i>&lambda;<sub>s</sub>&delta;&#772;</i>) yields:
             </p>
             {eq1}
+            {eq2}
             <p>
                 For Markovian <i>&#8499;</i>/<i>&#8499;</i>/<i>m</i> and FIFO <i>&#8499;</i>/<i>&#8499;</i>/1 systems with unlimited waiting space (<i>&rho;</i> &lt; 1):
             </p>
-            {eq2}
+            {eq3}
+            {eq4}
+            <p>
+                The sojourn time probability density in a FIFO <i>&#8499;</i>/<i>&#8499;</i>/1 queue is:
+            </p>
+            {eq5}
             <p>
                 In the discrete-event simulator, <i>&delta;&#772;</i><sub>sim</sub> is evaluated over all <i>d</i>(<i>T</i>) customers that have departed up to time <i>T</i>:
             </p>
-            {eq3}
-            {params_eq1_eq3}
+            {eq6}
+            {params_eq1_eq6}
 
             <h2>3. Theoretical Properties and Queueing Analysis</h2>
             <ul>
@@ -1785,7 +2178,7 @@ def generate_theory_html(
             eta_sim = m_stats.get("Wq", 0.0)
             served_cnt = m_stats.get("served", 0)
             A0_val = lam_val * vartheta_bar
-            rho_offered = A0_val / c_val
+            rho_offered = 0.0 if math.isinf(c_val) else (A0_val / c_val)
 
             if is_unstable:
                 eta_theo_str = "&infin; (Unstable)"
@@ -1801,22 +2194,37 @@ def generate_theory_html(
                 disc_str = f"{abs(eta_sim - eta_val):.4f} s"
 
             eq1 = latex_eq_row(
-                r"\overline{\eta} = \frac{A_c}{\lambda_s} = \mathcal{C}(m, A_0)\,\frac{\overline{\vartheta}}{m - A_0}, \qquad \overline{\varepsilon} = \frac{A_{c \mid k \geq m}}{\lambda} = \frac{\overline{\eta}}{\mathcal{C}(m, A_0)} = \frac{\overline{\vartheta}}{m - A_0}",
+                r"\overline{\eta} = \frac{A_c}{\lambda_s} = \mathcal{C}(m, A_0)\,\frac{\overline{\vartheta}}{m - A_0}",
                 eq_num=1,
                 zoom_factor=zoom_factor,
             )
             eq2 = latex_eq_row(
-                r"f_{\eta}(t) = \delta(t)\left(1 - \mathcal{C}(m, A_0)\right) + \mathcal{C}(m, A_0)(m\mu - \lambda)e^{-(m\mu - \lambda)t}, \qquad F_{\eta}(t) = 1 - \mathcal{C}(m, A_0)e^{-(m\mu - \lambda)t} \;\; (t > 0)",
+                r"\overline{\varepsilon} = \frac{A_{c \mid k \geq m}}{\lambda} = \frac{\overline{\eta}}{\mathcal{C}(m, A_0)} = \frac{\overline{\vartheta}}{m - A_0}",
                 eq_num=2,
                 zoom_factor=zoom_factor,
             )
             eq3 = latex_eq_row(
-                r"\overline{\eta}^{(M/G/1)} = \frac{\lambda\,\mathrm{E}[\vartheta^2]}{2(1 - \rho)} = \frac{\rho}{1 - \rho}\,\overline{\zeta}, \qquad \overline{\eta}_{\mathrm{sim}} = \frac{1}{d(T)} \sum_{n=1}^{d(T)} \eta_n = \frac{1}{d(T)} \sum_{n=1}^{d(T)} \left(t_{\mathrm{start},n} - t_{\mathrm{arr},n}\right)",
+                r"f_{\eta}(t) = \delta(t)\left(1 - \mathcal{C}(m, A_0)\right) + \mathcal{C}(m, A_0)(m\mu - \lambda)e^{-(m\mu - \lambda)t}",
                 eq_num=3,
                 zoom_factor=zoom_factor,
             )
+            eq4 = latex_eq_row(
+                r"F_{\eta}(t) = 1 - \mathcal{C}(m, A_0)e^{-(m\mu - \lambda)t} \quad (t > 0)",
+                eq_num=4,
+                zoom_factor=zoom_factor,
+            )
+            eq5 = latex_eq_row(
+                r"\overline{\eta}^{(M/G/1)} = \frac{\lambda\,\mathrm{E}[\vartheta^2]}{2(1 - \rho)} = \frac{\rho}{1 - \rho}\,\overline{\zeta}",
+                eq_num=5,
+                zoom_factor=zoom_factor,
+            )
+            eq6 = latex_eq_row(
+                r"\overline{\eta}_{\mathrm{sim}} = \frac{1}{d(T)} \sum_{n=1}^{d(T)} \eta_n = \frac{1}{d(T)} \sum_{n=1}^{d(T)} \left(t_{\mathrm{start},n} - t_{\mathrm{arr},n}\right)",
+                eq_num=6,
+                zoom_factor=zoom_factor,
+            )
 
-            params_eq1_eq3 = where_list([
+            params_eq1_eq6 = where_list([
                 ("<i>&eta;</i>, <i>&eta;&#772;</i>", "Waiting time in the queue for a <b>generic admitted customer</b> (including those that find a server free and do not wait, <i>&eta;</i> = 0) and its average value (labeled <i>W<sub>q</sub></i> in the simulator), in seconds (s)."),
                 ("<i>&varepsilon;</i>, <i>&varepsilon;&#772;</i>", "Waiting time in the queue for a customer that <b>actually joins the queue</b> (conditioned on <i>k</i> &ge; <i>m</i>) and its average value, in seconds (s)."),
                 ("<i>&#8493;</i>(<i>m</i>, <i>A</i><sub>0</sub>) = <i>&pi;<sub>r</sub></i>", "Erlang's C congestion probability Pr&#123;<i>k</i> &ge; <i>m</i>&#125;."),
@@ -1827,40 +2235,48 @@ def generate_theory_html(
             ])
 
             if eta_val is not None and not is_unstable and not math.isinf(eta_val):
-                if math.isinf(K_val) and service_is_exponential and all_arr_exponential and A0_val < c_val:
+                if math.isinf(c_val):
+                    ana_step = (
+                        f"<b>Analytical Calculation (M/M/&infin; Ample Servers, Eqs. 1&ndash;2):</b> "
+                        f"With infinite servers (<i>m</i> = &infin;), arriving customers immediately enter service without waiting. "
+                        f"Therefore, the unconditional and conditional average waiting times in queue are identically zero: "
+                        f"<br>&bull; Generic customer (Eq. 1): <i>&eta;&#772;</i> = <b>0.0000 s</b>. "
+                        f"<br>&bull; Queued customer (Eq. 2): <i>&varepsilon;&#772;</i> = <b>0.0000 s</b>."
+                    )
+                elif math.isinf(K_val) and service_is_exponential and all_arr_exponential and A0_val < c_val:
                     eps_bar = vartheta_bar / (c_val - A0_val)
                     pc_val = theo.get("p_c", rho_offered)
                     ana_step = (
-                        f"<b>Analytical Calculation ({model_tag}, Eq. 1):</b> "
+                        f"<b>Analytical Calculation ({model_tag}, Eqs. 1&ndash;2):</b> "
                         f"With <i>A</i><sub>0</sub> = {A0_val:.4f} E, <i>m</i> = {c_val}, <i>&vartheta;&#772;</i> = {vartheta_bar:.4f} s, and Erlang-C probability <i>&#8493;</i>(<i>m</i>, <i>A</i><sub>0</sub>) = {pc_val:.4f}: "
-                        f"<br>&bull; Average waiting time for a <i>generic</i> customer: <i>&eta;&#772;</i> = {pc_val:.4f} &times; {vartheta_bar:.4f} / ({c_val} &minus; {A0_val:.4f}) = <b>{eta_val:.4f} s</b>. "
-                        f"<br>&bull; Average waiting time for a customer that <i>actually joins the queue</i>: <i>&varepsilon;&#772;</i> = <i>&vartheta;&#772;</i> / (<i>m</i> &minus; <i>A</i><sub>0</sub>) = {vartheta_bar:.4f} / ({c_val} &minus; {A0_val:.4f}) = <b>{eps_bar:.4f} s</b>."
+                        f"<br>&bull; Average waiting time for a <i>generic</i> customer (Eq. 1): <i>&eta;&#772;</i> = {pc_val:.4f} &times; {vartheta_bar:.4f} / ({c_val} &minus; {A0_val:.4f}) = <b>{eta_val:.4f} s</b>. "
+                        f"<br>&bull; Average waiting time for a customer that <i>actually joins the queue</i> (Eq. 2): <i>&varepsilon;&#772;</i> = <i>&vartheta;&#772;</i> / (<i>m</i> &minus; <i>A</i><sub>0</sub>) = {vartheta_bar:.4f} / ({c_val} &minus; {A0_val:.4f}) = <b>{eps_bar:.4f} s</b>."
                     )
                 else:
                     ana_step = (
-                        f"<b>Analytical Calculation ({model_tag}, Eqs. 1 &amp; 3):</b> "
+                        f"<b>Analytical Calculation ({model_tag}, Eqs. 1 &amp; 5):</b> "
                         f"Evaluating the analytical model for <i>&lambda;</i> = {lam_val:.2f} cust/s and <i>&mu;</i> = {mu_val:.2f} cust/s gives: "
                         f"<br><i>&eta;&#772;</i> = <i>A<sub>c</sub></i> / <i>&lambda;<sub>s</sub></i> = <b>{eta_val:.4f} s</b>."
                     )
             else:
                 ana_step = (
-                    "<b>Analytical Calculation (Reference <i>&#8499;</i>/<i>&#8499;</i>/1 Benchmark at <i>&vartheta;&#772;</i> = 1.00 s, <i>&rho;</i> = 0.80, Eq. 1):</b> "
-                    "<br>&bull; Generic customer: <i>&eta;&#772;</i> = <i>&vartheta;&#772;</i> &middot; <i>&rho;</i> / (1 &minus; <i>&rho;</i>) = 1.00 &times; 0.80 / 0.20 = <b>4.0000 s</b>. "
-                    "<br>&bull; Customer that joins the queue: <i>&varepsilon;&#772;</i> = <i>&vartheta;&#772;</i> / (1 &minus; <i>&rho;</i>) = 1.00 / 0.20 = <b>5.0000 s</b>."
+                    "<b>Analytical Calculation (Reference <i>&#8499;</i>/<i>&#8499;</i>/1 Benchmark at <i>&vartheta;&#772;</i> = 1.00 s, <i>&rho;</i> = 0.80, Eqs. 1&ndash;2):</b> "
+                    "<br>&bull; Generic customer (Eq. 1): <i>&eta;&#772;</i> = <i>&vartheta;&#772;</i> &middot; <i>&rho;</i> / (1 &minus; <i>&rho;</i>) = 1.00 &times; 0.80 / 0.20 = <b>4.0000 s</b>. "
+                    "<br>&bull; Customer that joins the queue (Eq. 2): <i>&varepsilon;&#772;</i> = <i>&vartheta;&#772;</i> / (1 &minus; <i>&rho;</i>) = 1.00 / 0.20 = <b>5.0000 s</b>."
                 )
 
             if has_sim_data and served_cnt > 0:
                 tot_eta = eta_sim * served_cnt
                 emp_step = (
-                    f"<b>Empirical Simulator Evaluation (Eq. 3, Live Run with <i>d</i>(<i>T</i>) = {served_cnt} served customers):</b> "
+                    f"<b>Empirical Simulator Evaluation (Eq. 6, Live Run with <i>d</i>(<i>T</i>) = {served_cnt} served customers):</b> "
                     f"Summing <i>&eta;<sub>n</sub></i> = <i>t</i><sub>start,<i>n</i></sub> &minus; <i>t</i><sub>arr,<i>n</i></sub> over all {served_cnt} completed customers gives "
                     f"&sum; <i>&eta;<sub>n</sub></i> = <b>{tot_eta:.2f} s</b>. Dividing by <i>d</i>(<i>T</i>) yields: "
                     f"<br><i>&eta;&#772;</i><sub>sim</sub> = {tot_eta:.2f} / {served_cnt} = <b>{eta_sim:.4f} s</b>."
                 )
             else:
                 emp_step = (
-                    "<b>Empirical Simulator Evaluation (Eq. 3, Illustrative Sample of <i>d</i>(<i>T</i>) = 3 Customers):</b> "
-                    "If the first 3 served customers experience waiting times <i>&eta;</i><sub>1</sub> = 0.00 s, <i>&eta;</i><sub>2</sub> = 0.20 s, and <i>&eta;</i><sub>3</sub> = 0.60 s, then Eq. (3) gives: "
+                    "<b>Empirical Simulator Evaluation (Eq. 6, Illustrative Sample of <i>d</i>(<i>T</i>) = 3 Customers):</b> "
+                    "If the first 3 served customers experience waiting times <i>&eta;</i><sub>1</sub> = 0.00 s, <i>&eta;</i><sub>2</sub> = 0.20 s, and <i>&eta;</i><sub>3</sub> = 0.60 s, then Eq. (6) gives: "
                     "<br><i>&eta;&#772;</i><sub>sim</sub> = (0.00 + 0.20 + 0.60) / 3 = 0.80 / 3 = <b>0.2667 s</b>."
                 )
 
@@ -1883,16 +2299,18 @@ def generate_theory_html(
                 the unconditional average waiting time <i>&eta;&#772;</i> and conditional average waiting time <i>&varepsilon;&#772;</i> are:
             </p>
             {eq1}
+            {eq2}
             <p>
                 Under a <b>FIFO queueing policy</b>, the PDF and CDF of <i>&eta;</i> (factoring in the Dirac delta impulse <i>&delta;</i>(<i>t</i>) at <i>t</i> = 0) are:
             </p>
-            {eq2}
-            <p>
-                whereas for a customer that actually joins the queue, <i>f<sub>&varepsilon;</sub></i>(<i>t</i>) = (<i>m&mu;</i> &minus; <i>&lambda;</i>)<i>e</i><sup>&minus;(<i>m&mu;</i>&minus;<i>&lambda;</i>)<i>t</i></sup> and <i>F<sub>&varepsilon;</sub></i>(<i>t</i>) = 1 &minus; <i>e</i><sup>&minus;(<i>m&mu;</i>&minus;<i>&lambda;</i>)<i>t</i></sup> (<i>t</i> &gt; 0).
-                For a general single-server <i>&#8499;</i>/<i>&#119970;</i>/1 queue and for the discrete-event simulator:
-            </p>
             {eq3}
-            {params_eq1_eq3}
+            {eq4}
+            <p>
+                For a general single-server <i>&#8499;</i>/<i>&#119970;</i>/1 queue (Pollaczek-Khinchine formula) and for the discrete-event simulator:
+            </p>
+            {eq5}
+            {eq6}
+            {params_eq1_eq6}
 
             <h2>3. Theoretical Properties and System Dimensioning</h2>
             <ul>
@@ -1929,25 +2347,40 @@ def generate_theory_html(
             arr_tot = m_stats.get("arrived", 0)
             drop_tot = m_stats.get("dropped", 0)
             A0_val = lam_val * vartheta_bar
-            rho_offered = A0_val / c_val
+            rho_offered = 0.0 if math.isinf(c_val) else (A0_val / c_val)
 
             eq1 = latex_eq_row(
-                r"\pi_p = P_m = \frac{A_0^m / m!}{\sum_{k=0}^{m} A_0^k / k!} = \mathcal{B}(m, A_0), \qquad \mathcal{B}(m, A_0) = \frac{A_0\,\mathcal{B}(m - 1, A_0)}{m + A_0\,\mathcal{B}(m - 1, A_0)}, \quad \mathcal{B}(0, A_0) = 1",
+                r"\pi_p = P_m = \frac{A_0^m / m!}{\sum_{k=0}^{m} A_0^k / k!} = \mathcal{B}(m, A_0)",
                 eq_num=1,
                 zoom_factor=zoom_factor,
             )
             eq2 = latex_eq_row(
-                r"\pi_p^{(M/M/1/L)} = P_{L+1} = \frac{1 - A_0}{1 - A_0^{L+2}}\,A_0^{L+1} \;\; (A_0 \neq 1), \qquad \pi_p^{(M/M/1/L)} = \frac{1}{L + 2} \;\; (A_0 = 1)",
+                r"\mathcal{B}(m, A_0) = \frac{A_0\,\mathcal{B}(m - 1, A_0)}{m + A_0\,\mathcal{B}(m - 1, A_0)}, \qquad \mathcal{B}(0, A_0) = 1",
                 eq_num=2,
                 zoom_factor=zoom_factor,
             )
             eq3 = latex_eq_row(
-                r"\lambda_p = \pi_p \lambda, \qquad A_p = \pi_p A_0, \qquad \hat{\pi}_{p,\mathrm{sim}} = \frac{a_p(T)}{a(T)} = \frac{N_{\mathrm{dropped}}}{N_{\mathrm{arrived}}}",
+                r"\pi_p^{(M/M/1/L)} = P_{L+1} = \frac{1 - A_0}{1 - A_0^{L+2}}\,A_0^{L+1} \quad (A_0 \neq 1)",
                 eq_num=3,
                 zoom_factor=zoom_factor,
             )
+            eq4 = latex_eq_row(
+                r"\pi_p^{(M/M/1/L)} = \frac{1}{L + 2} \quad (A_0 = 1)",
+                eq_num=4,
+                zoom_factor=zoom_factor,
+            )
+            eq5 = latex_eq_row(
+                r"\lambda_p = \pi_p \lambda, \qquad A_p = \pi_p A_0",
+                eq_num=5,
+                zoom_factor=zoom_factor,
+            )
+            eq6 = latex_eq_row(
+                r"\hat{\pi}_{p,\mathrm{sim}} = \frac{a_p(T)}{a(T)} = \frac{N_{\mathrm{dropped}}}{N_{\mathrm{arrived}}}",
+                eq_num=6,
+                zoom_factor=zoom_factor,
+            )
 
-            params_eq1_eq3 = where_list([
+            params_eq1_eq6 = where_list([
                 ("<i>&pi;<sub>p</sub></i>", "<b>Blocking probability</b> (probability of a customer being rejected upon arrival, labeled <i>P</i><sub>loss</sub> in the simulator)."),
                 ("<i>A</i><sub>0</sub> = <i>&lambda;&vartheta;&#772;</i> = <i>&lambda;</i> / <i>&mu;</i>", "Traffic offered to the system, in Erlangs (E)."),
                 ("<i>m</i>", "Number of parallel servers in the system."),
@@ -1958,39 +2391,45 @@ def generate_theory_html(
                 ("<i>a</i>(<i>T</i>), <i>a<sub>p</sub></i>(<i>T</i>)", "Cumulative arrivals and cumulative rejected arrivals up to time <i>T</i>."),
             ])
 
-            if pi_p_theo is not None and not math.isinf(K_val):
+            if math.isinf(c_val):
+                ana_step = (
+                    f"<b>Analytical Calculation (M/M/&infin; Ample Servers, Eq. 1):</b> "
+                    f"Because the system possesses infinite parallel servers (<i>m</i> = &infin;), no customer is ever blocked or rejected. "
+                    f"Therefore, the blocking probability is identically: <br><i>&pi;<sub>p</sub></i> = <b>0.0000</b> (0.00%)."
+                )
+            elif pi_p_theo is not None and not math.isinf(K_val):
                 p0_v = theo.get("p0", 0.0)
                 L_int = int(K_val)
                 if c_val == 1:
                     ana_step = (
-                        f"<b>Analytical Calculation (<i>&#8499;</i>/<i>&#8499;</i>/1/<i>L</i> with <i>L</i> = {L_int}, Eq. 2):</b> "
+                        f"<b>Analytical Calculation (<i>&#8499;</i>/<i>&#8499;</i>/1/<i>L</i> with <i>L</i> = {L_int}, Eq. 3):</b> "
                         f"With offered traffic <i>A</i><sub>0</sub> = {A0_val:.4f} E and waiting space <i>L</i> = {L_int} (full state <i>k</i> = <i>L</i> + 1 = {L_int + 1}), "
-                        f"Eq. (2) gives <i>P</i><sub>0</sub> = {p0_v:.5f} and blocking probability: "
+                        f"Eq. (3) gives <i>P</i><sub>0</sub> = {p0_v:.5f} and blocking probability: "
                         f"<br><i>&pi;<sub>p</sub></i> = <i>P</i><sub>{L_int + 1}</sub> = <i>P</i><sub>0</sub><i>A</i><sub>0</sub><sup>{L_int + 1}</sup> = {p0_v:.5f} &times; ({A0_val:.4f})<sup>{L_int + 1}</sup> = <b>{pi_p_theo:.4f}</b> ({pi_p_theo*100:.2f}%)."
                     )
                 else:
                     ana_step = (
-                        f"<b>Analytical Calculation ({model_tag} with <i>L</i> = {L_int}, Eqs. 1&ndash;2):</b> "
+                        f"<b>Analytical Calculation ({model_tag} with <i>L</i> = {L_int}, Eqs. 1&ndash;3):</b> "
                         f"With <i>A</i><sub>0</sub> = {A0_val:.4f} E, <i>m</i> = {c_val}, and <i>L</i> = {L_int}, the full-system state is <i>k</i> = <i>m</i> + <i>L</i> = {c_val + L_int}, yielding: "
                         f"<br><i>&pi;<sub>p</sub></i> = <i>P</i><sub>{c_val + L_int}</sub> = <b>{pi_p_theo:.4f}</b> ({pi_p_theo*100:.2f}%)."
                     )
             else:
                 ana_step = (
-                    "<b>Analytical Calculation (Reference <i>&#8499;</i>/<i>&#8499;</i>/1/<i>L</i> Benchmark with <i>L</i> = 3, <i>A</i><sub>0</sub> = 0.80 E, Eq. 2):</b> "
-                    "When waiting space is unlimited (<i>L</i> = &infin;), <i>&pi;<sub>p</sub></i> = 0. For a finite queue with <i>L</i> = 3 and <i>A</i><sub>0</sub> = 0.80 E, Eq. (2) gives: "
+                    "<b>Analytical Calculation (Reference <i>&#8499;</i>/<i>&#8499;</i>/1/<i>L</i> Benchmark with <i>L</i> = 3, <i>A</i><sub>0</sub> = 0.80 E, Eq. 3):</b> "
+                    "When waiting space is unlimited (<i>L</i> = &infin;), <i>&pi;<sub>p</sub></i> = 0. For a finite queue with <i>L</i> = 3 and <i>A</i><sub>0</sub> = 0.80 E, Eq. (3) gives: "
                     "<br><i>P</i><sub>0</sub> = (1 &minus; 0.80) / (1 &minus; 0.80<sup>5</sup>) = 0.2975, and <i>&pi;<sub>p</sub></i> = <i>P</i><sub>4</sub> = 0.2975 &times; 0.80<sup>4</sup> = <b>0.1219</b> (12.19%)."
                 )
 
             if has_sim_data and arr_tot > 0:
                 emp_step = (
-                    f"<b>Empirical Simulator Evaluation (Eq. 3, Live Run with <i>a</i>(<i>T</i>) = {arr_tot} arrivals):</b> "
+                    f"<b>Empirical Simulator Evaluation (Eq. 6, Live Run with <i>a</i>(<i>T</i>) = {arr_tot} arrivals):</b> "
                     f"Out of <i>a</i>(<i>T</i>) = {arr_tot} total arrivals, <i>a<sub>p</sub></i>(<i>T</i>) = {drop_tot} found the system full and were rejected: "
                     f"<br><i>&pi;&#770;</i><sub><i>p</i>,sim</sub> = {drop_tot} / {arr_tot} = <b>{pi_p_sim:.4f}</b> ({pi_p_sim*100:.2f}%)."
                 )
             else:
                 emp_step = (
-                    "<b>Empirical Simulator Evaluation (Eq. 3, Illustrative Sample Run):</b> "
-                    "If <i>a</i>(<i>T</i>) = 500 customers arrive during interval <i>T</i> and <i>a<sub>p</sub></i>(<i>T</i>) = 18 are rejected because the queue is full, then Eq. (3) yields: "
+                    "<b>Empirical Simulator Evaluation (Eq. 6, Illustrative Sample Run):</b> "
+                    "If <i>a</i>(<i>T</i>) = 500 customers arrive during interval <i>T</i> and <i>a<sub>p</sub></i>(<i>T</i>) = 18 are rejected because the queue is full, then Eq. (6) yields: "
                     "<br><i>&pi;&#770;</i><sub><i>p</i>,sim</sub> = 18 / 500 = <b>0.0360</b> (3.60%)."
                 )
 
@@ -2015,20 +2454,22 @@ def generate_theory_html(
             <p>
                 <b>Real System Without Waiting Space (<i>&#8499;</i>/<i>&#8499;</i>/<i>m</i>/0 &mdash; Erlang's B Formula).</b>
                 When <i>L</i> = 0, <i>&pi;<sub>p</sub></i> is given by <b>Erlang's B formula</b> <i>&#8492;</i>(<i>m</i>, <i>A</i><sub>0</sub>),
-                which can also be evaluated recursively without factorial overflow:
+                and can also be evaluated recursively without factorial overflow:
             </p>
             {eq1}
+            {eq2}
             <p>
                 <b>Single-Server System With Limited Waiting Space (<i>&#8499;</i>/<i>&#8499;</i>/1/<i>L</i>).</b>
-                When the queue can hold up to <i>L</i> waiting customers (so max <i>k</i>(<i>t</i>) = <i>L</i> + 1), steady-state probabilities
-                are <i>P<sub>k</sub></i> = <i>P</i><sub>0</sub><i>A</i><sub>0</sub><sup><i>k</i></sup> (0 &le; <i>k</i> &le; <i>L</i> + 1), yielding:
+                When the queue can hold up to <i>L</i> waiting customers (so max <i>k</i>(<i>t</i>) = <i>L</i> + 1), steady-state probabilities yield:
             </p>
-            {eq2}
+            {eq3}
+            {eq4}
             <p>
                 The rejected arrival rate <i>&lambda;<sub>p</sub></i>, rejected traffic <i>A<sub>p</sub></i>, and empirical blocking ratio are:
             </p>
-            {eq3}
-            {params_eq1_eq3}
+            {eq5}
+            {eq6}
+            {params_eq1_eq6}
 
             <h2>3. Theoretical Properties and Queueing Analysis</h2>
             <ul>
@@ -2048,7 +2489,7 @@ def generate_theory_html(
             <h2>5. Analytical vs. Empirical Benchmark Table</h2>
             <table class="book-table">
                 <tr><th>Quantity</th><th>Course Symbol (GUI)</th><th>Formula / Estimator</th><th>Value</th></tr>
-                <tr><td>Theoretical Blocking Probability</td><td><i>&pi;<sub>p</sub></i> (<i>P</i><sub>loss,theo</sub>)</td><td><i>P</i><sub>full</sub> (Eqs. 1&ndash;2)</td><td>{pi_p_theo_str}</td></tr>
+                <tr><td>Theoretical Blocking Probability</td><td><i>&pi;<sub>p</sub></i> (<i>P</i><sub>loss,theo</sub>)</td><td><i>P</i><sub>full</sub> (Eqs. 1&ndash;3)</td><td>{pi_p_theo_str}</td></tr>
                 <tr><td>Simulated Blocking Probability</td><td><i>&pi;&#770;</i><sub><i>p</i>,sim</sub> (<i>P</i><sub>loss,sim</sub>)</td><td><i>a<sub>p</sub></i>(<i>T</i>) / <i>a</i>(<i>T</i>)</td><td>{pi_p_sim*100.0:.2f}% ({pi_p_sim:.4f})</td></tr>
                 <tr class="bottom-rule"><td>Rejected / Total Arrivals</td><td><i>a<sub>p</sub></i>(<i>T</i>) / <i>a</i>(<i>T</i>)</td><td>Event counters</td><td>{drop_tot:,} / {arr_tot:,} cust</td></tr>
             </table>
@@ -2069,22 +2510,32 @@ def generate_theory_html(
             littles_err = m_stats.get("littles_error_L", 0.0)
 
             eq1 = latex_eq_row(
-                r"A = \lambda\,\overline{\delta} \quad (\text{Lossless System}), \qquad A = \lambda_s\,\overline{\delta}, \qquad A_c = \lambda_s\,\overline{\eta}, \qquad A_s = \lambda_s\,\overline{\vartheta}",
+                r"A = \lambda_s\,\overline{\delta} \quad (\text{Whole System},\; \lambda_s = (1 - \pi_p)\lambda)",
                 eq_num=1,
                 zoom_factor=zoom_factor,
             )
             eq2 = latex_eq_row(
-                r"\overline{\delta} = \overline{\eta} + \overline{\vartheta} \quad \Longrightarrow \quad A = \lambda_s\left(\overline{\eta} + \overline{\vartheta}\right) = A_c + A_s",
+                r"A_c = \lambda_s\,\overline{\eta} \quad (\text{Queue Subsystem})",
                 eq_num=2,
                 zoom_factor=zoom_factor,
             )
             eq3 = latex_eq_row(
-                r"L_{\mathrm{diff}} = \left| I_{\mathrm{sim}}(T) - \lambda_{s,\mathrm{sim}}\,\overline{\delta}_{\mathrm{sim}} \right| \longrightarrow 0 \quad (T \to \infty)",
+                r"A_s = \lambda_s\,\overline{\vartheta} \quad (\text{Server Subsystem})",
                 eq_num=3,
                 zoom_factor=zoom_factor,
             )
+            eq4 = latex_eq_row(
+                r"\overline{\delta} = \overline{\eta} + \overline{\vartheta} \quad \Longrightarrow \quad A = \lambda_s\left(\overline{\eta} + \overline{\vartheta}\right) = A_c + A_s",
+                eq_num=4,
+                zoom_factor=zoom_factor,
+            )
+            eq5 = latex_eq_row(
+                r"L_{\mathrm{diff}} = \left| I_{\mathrm{sim}}(T) - \lambda_{s,\mathrm{sim}}\,\overline{\delta}_{\mathrm{sim}} \right| \longrightarrow 0 \quad (T \to \infty)",
+                eq_num=5,
+                zoom_factor=zoom_factor,
+            )
 
-            params_eq1_eq3 = where_list([
+            params_eq1_eq5 = where_list([
                 ("<i>A</i> = &langle;<i>k</i>(<i>t</i>)&rangle;", "Average traffic intensity in the whole system (average number of customers in the system, labeled <i>L</i> in the simulator), in Erlangs (E)."),
                 ("<i>A<sub>c</sub></i>, <i>A<sub>s</sub></i>", "Average number of customers waiting in the queue (<i>A<sub>c</sub></i>, labeled <i>L<sub>q</sub></i>) and average number of customers being served (<i>A<sub>s</sub></i> = <i>m&rho;</i>), in Erlangs (E)."),
                 ("<i>&lambda;</i>, <i>&lambda;<sub>s</sub></i> = (1 &minus; <i>&pi;<sub>p</sub></i>)<i>&lambda;</i>", "Average arrival rate offered to the system (<i>&lambda;</i>) and average rate of customers entering (admitted to) the system (<i>&lambda;<sub>s</sub></i>, labeled <i>&lambda;</i><sub>eff</sub> in the simulator), in customers per second (cust/s)."),
@@ -2101,11 +2552,11 @@ def generate_theory_html(
                 <ol>
                     <li><b>Admitted Customer Rate (<i>&lambda;<sub>s</sub></i>):</b> With {admitted_cnt} customers entering the system over <i>T</i> = {sim_T:.2f} s:
                         <br><i>&lambda;</i><sub><i>s</i>,sim</sub> = {admitted_cnt} / {sim_T:.2f} = <b>{lam_s_sim:.5f} cust/s</b>.</li>
-                    <li><b>Whole-System Little's Law Verification (Eqs. 1 &amp; 3):</b> Multiplying <i>&lambda;</i><sub><i>s</i>,sim</sub> by the average sojourn time <i>&delta;&#772;</i><sub>sim</sub> = {delta_sim:.5f} s gives:
+                    <li><b>Whole-System Little's Law Verification (Eqs. 1 &amp; 5):</b> Multiplying <i>&lambda;</i><sub><i>s</i>,sim</sub> by the average sojourn time <i>&delta;&#772;</i><sub>sim</sub> = {delta_sim:.5f} s gives:
                         <br><i>&lambda;</i><sub><i>s</i>,sim</sub> &middot; <i>&delta;&#772;</i><sub>sim</sub> = {lam_s_sim:.5f} &times; {delta_sim:.5f} = <b>{littles_A:.5f} E</b>.
                         Comparing against the time-average occupancy integral <i>I</i><sub>sim</sub>(<i>T</i>) = <b>{A_sim:.5f} E</b> yields residual:
                         <br><i>L</i><sub>diff</sub> = |{A_sim:.5f} &minus; {littles_A:.5f}| = <b>{littles_err:.5f} E</b>.</li>
-                    <li><b>Queue Subsystem Verification (Eq. 1):</b> For the waiting queue alone:
+                    <li><b>Queue Subsystem Verification (Eq. 2):</b> For the waiting queue alone:
                         <br><i>&lambda;</i><sub><i>s</i>,sim</sub> &middot; <i>&eta;&#772;</i><sub>sim</sub> = {lam_s_sim:.5f} &times; {eta_sim:.5f} = <b>{littles_Ac:.5f} E</b> (compared to <i>A&#770;</i><sub><i>c</i>,sim</sub> = <b>{Ac_sim:.5f} E</b>).</li>
                 </ol>
                 """
@@ -2115,9 +2566,9 @@ def generate_theory_html(
                     Consider a queueing system observed over <i>T</i> = <b>100.0 s</b> in which <b>80 customers</b> are admitted (<i>&lambda;<sub>s</sub></i> = 0.80 cust/s), each spending an average waiting time <i>&eta;&#772;</i> = <b>1.50 s</b> in the queue and an average service time <i>&vartheta;&#772;</i> = <b>1.00 s</b> in the server (so <i>&delta;&#772;</i> = <i>&eta;&#772;</i> + <i>&vartheta;&#772;</i> = <b>2.50 s</b>):
                 </p>
                 <ol>
-                    <li><b>Queue Subsystem (Eq. 1):</b> <i>A<sub>c</sub></i> = <i>&lambda;<sub>s</sub>&eta;&#772;</i> = 0.80 &times; 1.50 = <b>1.2000 E</b>.</li>
-                    <li><b>Server Subsystem (Eq. 1):</b> <i>A<sub>s</sub></i> = <i>&lambda;<sub>s</sub>&vartheta;&#772;</i> = 0.80 &times; 1.00 = <b>0.8000 E</b>.</li>
-                    <li><b>Whole System (Eqs. 1&ndash;2):</b> <i>A</i> = <i>&lambda;<sub>s</sub>&delta;&#772;</i> = 0.80 &times; 2.50 = <b>2.0000 E</b> = <i>A<sub>c</sub></i> + <i>A<sub>s</sub></i> (with <i>L</i><sub>diff</sub> = <b>0.00000</b>).</li>
+                    <li><b>Queue Subsystem (Eq. 2):</b> <i>A<sub>c</sub></i> = <i>&lambda;<sub>s</sub>&eta;&#772;</i> = 0.80 &times; 1.50 = <b>1.2000 E</b>.</li>
+                    <li><b>Server Subsystem (Eq. 3):</b> <i>A<sub>s</sub></i> = <i>&lambda;<sub>s</sub>&vartheta;&#772;</i> = 0.80 &times; 1.00 = <b>0.8000 E</b>.</li>
+                    <li><b>Whole System (Eqs. 1&ndash;4):</b> <i>A</i> = <i>&lambda;<sub>s</sub>&delta;&#772;</i> = 0.80 &times; 2.50 = <b>2.0000 E</b> = <i>A<sub>c</sub></i> + <i>A<sub>s</sub></i> (with <i>L</i><sub>diff</sub> = <b>0.00000</b>).</li>
                 </ol>
                 """
 
@@ -2144,16 +2595,18 @@ def generate_theory_html(
                 Applying Little's Law to the entire queueing system, to the queue subsystem, and to the server subsystem yields:
             </p>
             {eq1}
+            {eq2}
+            {eq3}
             <p>
-                Combining Eq. (1) with the additive decomposition of average sojourn time (<i>&delta;&#772;</i> = <i>&eta;&#772;</i> + <i>&vartheta;&#772;</i>)
+                Combining with the additive decomposition of average sojourn time (<i>&delta;&#772;</i> = <i>&eta;&#772;</i> + <i>&vartheta;&#772;</i>)
                 proves the additive decomposition of average traffic:
             </p>
-            {eq2}
+            {eq4}
             <p>
                 Over a finite simulation horizon <i>T</i>, the empirical conservation discrepancy <i>L</i><sub>diff</sub> converges to zero as <i>T</i> &rarr; &infin;:
             </p>
-            {eq3}
-            {params_eq1_eq3}
+            {eq5}
+            {params_eq1_eq5}
 
             <h2>3. Theoretical Properties and Queueing Analysis</h2>
             <ul>
@@ -2178,7 +2631,6 @@ def generate_theory_html(
             """
             return title, _format_theory_html(html)
 
-        # ---------------------------------------------------------------
         # Topic 14: Customer Flow Accounting & Carried Traffic (Served / Arrived)
         # ---------------------------------------------------------------
         else:
@@ -2193,29 +2645,47 @@ def generate_theory_html(
             t_sim = max(1e-4, m_stats.get("T", 0.0))
             lam_s_sim = (served_tot / t_sim) if sim_T > 0.01 else 0.0
             pi_p_theo = theo.get("p_loss", 0.0) if theo else 0.0
-            theo_lam_s = (
-                lam_val * (1.0 - pi_p_theo)
-                if (theo and not is_unstable)
-                else min(lam_val, c_val * mu_val)
-            )
+            if math.isinf(c_val):
+                theo_lam_s = lam_val if mu_val > 0 else 0.0
+            else:
+                theo_lam_s = (
+                    lam_val * (1.0 - pi_p_theo)
+                    if (theo and not is_unstable)
+                    else min(lam_val, c_val * mu_val)
+                )
 
             eq1 = latex_eq_row(
-                r"k(t) = k(0) + a(t) - d(t) \;\; (\text{Lossless}), \qquad a(t) = d(t) + k(t) + a_p(t) \;\; (\text{General System},\; k(0) = 0)",
+                r"k(t) = k(0) + a(t) - d(t) \quad (\text{Lossless System})",
                 eq_num=1,
                 zoom_factor=zoom_factor,
             )
             eq2 = latex_eq_row(
-                r"\lambda = \lim_{t \to \infty} \frac{a(t)}{t}, \qquad \lambda = \lambda_s + \lambda_p, \qquad \lambda_s = (1 - \pi_p)\lambda = \lim_{t \to \infty} \frac{d(t)}{t}, \qquad \lambda_p = \pi_p \lambda",
+                r"a(t) = d(t) + k(t) + a_p(t) \quad (\text{General System},\; k(0) = 0)",
                 eq_num=2,
                 zoom_factor=zoom_factor,
             )
             eq3 = latex_eq_row(
-                r"A_0 = A_s + A_p, \qquad A_s = \lambda_s\,\overline{\vartheta} = (1 - \pi_p)A_0, \qquad A_p = \lambda_p\,\overline{\vartheta} = \pi_p A_0",
+                r"\lambda = \lim_{t \to \infty} \frac{a(t)}{t} = \lambda_s + \lambda_p",
                 eq_num=3,
                 zoom_factor=zoom_factor,
             )
+            eq4 = latex_eq_row(
+                r"\lambda_s = (1 - \pi_p)\lambda = \lim_{t \to \infty} \frac{d(t)}{t}, \qquad \lambda_p = \pi_p \lambda",
+                eq_num=4,
+                zoom_factor=zoom_factor,
+            )
+            eq5 = latex_eq_row(
+                r"A_0 = A_s + A_p",
+                eq_num=5,
+                zoom_factor=zoom_factor,
+            )
+            eq6 = latex_eq_row(
+                r"A_s = \lambda_s\,\overline{\vartheta} = (1 - \pi_p)A_0, \qquad A_p = \lambda_p\,\overline{\vartheta} = \pi_p A_0",
+                eq_num=6,
+                zoom_factor=zoom_factor,
+            )
 
-            params_eq1_eq3 = where_list([
+            params_eq1_eq6 = where_list([
                 ("<i>a</i>(<i>t</i>)", "Total number of arrivals to the system up to time <i>t</i> (labeled <i>Arrived</i> in the simulator)."),
                 ("<i>d</i>(<i>t</i>)", "Total number of departures (completed services) from the system up to time <i>t</i> (labeled <i>Served</i> in the simulator)."),
                 ("<i>a<sub>p</sub></i>(<i>t</i>)", "Total number of customers rejected (lost) up to time <i>t</i> due to the queue being full (labeled <i>Drops</i> in the simulator)."),
@@ -2230,9 +2700,9 @@ def generate_theory_html(
                     Evaluating the cumulative counters at simulation time <i>t</i> = <b>{sim_T:.2f} s</b> (with initial occupancy <i>k</i>(0) = 0):
                 </p>
                 <ol>
-                    <li><b>Sample-Path Customer Conservation (Eq. 1):</b> At <i>t</i> = {sim_T:.2f} s, we have <i>d</i>(<i>t</i>) = {served_tot} departures, <i>k</i>(<i>t</i>) = {k_now} customers currently inside the system, and <i>a<sub>p</sub></i>(<i>t</i>) = {dropped_tot} rejected customers:
+                    <li><b>Sample-Path Customer Conservation (Eq. 2):</b> At <i>t</i> = {sim_T:.2f} s, we have <i>d</i>(<i>t</i>) = {served_tot} departures, <i>k</i>(<i>t</i>) = {k_now} customers currently inside the system, and <i>a<sub>p</sub></i>(<i>t</i>) = {dropped_tot} rejected customers:
                         <br><i>d</i>(<i>t</i>) + <i>k</i>(<i>t</i>) + <i>a<sub>p</sub></i>(<i>t</i>) = {served_tot} + {k_now} + {dropped_tot} = <b>{served_tot + k_now + dropped_tot} customers</b> = <i>a</i>(<i>t</i>) ({arr_tot} arrivals).</li>
-                    <li><b>Empirical Rate Balance (Eq. 2):</b> Dividing by <i>t</i> = {sim_T:.2f} s gives the empirical departure rate:
+                    <li><b>Empirical Rate Balance (Eqs. 3&ndash;4):</b> Dividing by <i>t</i> = {sim_T:.2f} s gives the empirical departure rate:
                         <br><i>d</i>(<i>t</i>) / <i>t</i> = {served_tot} / {sim_T:.2f} = <b>{lam_s_sim:.4f} cust/s</b> (compared to theoretical <i>&lambda;<sub>s</sub></i> = (1 &minus; <i>&pi;<sub>p</sub></i>)<i>&lambda;</i> = <b>{theo_lam_s:.4f} cust/s</b>).</li>
                 </ol>
                 """
@@ -2242,9 +2712,9 @@ def generate_theory_html(
                     Consider an observation interval <i>T</i> = <b>100.0 s</b> starting from an empty system <i>k</i>(0) = 0, during which <i>a</i>(<i>T</i>) = <b>82 customers</b> arrive:
                 </p>
                 <ol>
-                    <li><b>Sample-Path Customer Balance (Eq. 1):</b> If <i>a<sub>p</sub></i>(<i>T</i>) = 2 customers are rejected at the buffer entrance and <i>k</i>(<i>T</i>) = 1 customer is still inside the system at <i>t</i> = <i>T</i>, then the number of completed departures is:
+                    <li><b>Sample-Path Customer Balance (Eq. 2):</b> If <i>a<sub>p</sub></i>(<i>T</i>) = 2 customers are rejected at the buffer entrance and <i>k</i>(<i>T</i>) = 1 customer is still inside the system at <i>t</i> = <i>T</i>, then the number of completed departures is:
                         <br><i>d</i>(<i>T</i>) = <i>a</i>(<i>T</i>) &minus; <i>k</i>(<i>T</i>) &minus; <i>a<sub>p</sub></i>(<i>T</i>) = 82 &minus; 1 &minus; 2 = <b>79 customers</b>.</li>
-                    <li><b>Rate and Traffic Decomposition (Eqs. 2&ndash;3):</b> Over <i>T</i> = 100.0 s, the empirical arrival rate is <i>a</i>(<i>T</i>)/<i>T</i> = 0.82 cust/s, split into admitted rate <i>&lambda;<sub>s</sub></i> &approx; 0.80 cust/s and rejected rate <i>&lambda;<sub>p</sub></i> &approx; 0.02 cust/s.</li>
+                    <li><b>Rate and Traffic Decomposition (Eqs. 3&ndash;6):</b> Over <i>T</i> = 100.0 s, the empirical arrival rate is <i>a</i>(<i>T</i>)/<i>T</i> = 0.82 cust/s, split into admitted rate <i>&lambda;<sub>s</sub></i> &approx; 0.80 cust/s and rejected rate <i>&lambda;<sub>p</sub></i> &approx; 0.02 cust/s.</li>
                 </ol>
                 """
 
@@ -2269,18 +2739,21 @@ def generate_theory_html(
 
             <h2>2. Mathematical Formulation</h2>
             <p>
-                At any instant <i>t</i> &ge; 0, the cumulative counting processes satisfy the exact sample-path conservation identity:
+                At any instant <i>t</i> &ge; 0, the cumulative counting processes satisfy the sample-path conservation identities:
             </p>
             {eq1}
+            {eq2}
             <p>
                 Taking the long-run time-average rates as <i>t</i> &rarr; &infin; (where <i>k</i>(<i>t</i>)/<i>t</i> &rarr; 0 in any stable or finite-capacity system) yields the rate conservation equations:
             </p>
-            {eq2}
-            <p>
-                Multiplying Eq. (2) by the mean service time <i>&vartheta;&#772;</i> = 1/<i>&mu;</i> produces the traffic conservation identity (in Erlangs):
-            </p>
             {eq3}
-            {params_eq1_eq3}
+            {eq4}
+            <p>
+                Multiplying by the mean service time <i>&vartheta;&#772;</i> = 1/<i>&mu;</i> produces the traffic conservation identities (in Erlangs):
+            </p>
+            {eq5}
+            {eq6}
+            {params_eq1_eq6}
 
             <h2>3. Theoretical Properties and Queueing Analysis</h2>
             <ul>

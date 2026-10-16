@@ -48,12 +48,14 @@ class MarkovChainView(QWidget):
 
         # System Capacity
         is_inf_k = math.isinf(K)
+        is_inf_c = math.isinf(c)
         total_K = (3 * int(K)) if (self.engine.priority_enabled and not is_inf_k) else (math.inf if is_inf_k else int(K))
-        N_max = math.inf if is_inf_k else (c + total_K)
+        N_max = math.inf if (is_inf_k or is_inf_c) else (int(c) + total_K)
 
         # Rates
         lam_tot = sum(1.0 / max(1e-6, d.mean()) for d in self.engine.arrival_dists.values() if d is not None)
-        mu_rate = 1.0 / max(1e-6, self.engine.service_dist.mean())
+        mean_s = self.engine.service_dist.mean()
+        mu_rate = (1.0 / mean_s) if (not math.isinf(mean_s) and mean_s > 0) else 0.0
 
         # -------------------------------------------------------------------
         # Header & Status Badges
@@ -77,16 +79,17 @@ class MarkovChainView(QWidget):
         painter.drawText(285, 17, k_desc)
 
         # Right Live State Badge Pill
+        c_badge_str = "∞" if is_inf_c else str(int(c))
         if self.engine.priority_enabled:
             q0 = len(self.engine.queues.get(0, []))
             q1 = len(self.engine.queues.get(1, []))
             q2 = len(self.engine.queues.get(2, []))
             cap_label = "∞" if is_inf_k else f"3x{int(K)}"
-            badge_text = f"State n = {curr_n} (Busy: {busy_count}/{c} | Q: {q0}+{q1}+{q2}/{cap_label})"
+            badge_text = f"State n = {curr_n} (Busy: {busy_count}/{c_badge_str} | Q: {q0}+{q1}+{q2}/{cap_label})"
             badge_w = 245
         else:
             k_str = "∞" if is_inf_k else str(int(K))
-            badge_text = f"State n = {curr_n} (Busy: {busy_count}/{c} | Queued: {q_count}/{k_str})"
+            badge_text = f"State n = {curr_n} (Busy: {busy_count}/{c_badge_str} | Queued: {q_count}/{k_str})"
             badge_w = 210
 
         badge_rect = QRectF(w - badge_w - 12, 4, badge_w, 18)
@@ -115,14 +118,14 @@ class MarkovChainView(QWidget):
         min_node_spacing = 52
         max_visible = max(6, min(14, int(avail_w // min_node_spacing)))
 
-        if is_inf_k or (N_max + 1) > max_visible:
+        if is_inf_k or is_inf_c or (N_max + 1) > max_visible:
             # Sliding window centered around active state curr_n
             half = max_visible // 2
             start_s = max(0, curr_n - half)
-            if not is_inf_k and start_s + max_visible > N_max + 1:
+            if not is_inf_k and not is_inf_c and start_s + max_visible > N_max + 1:
                 start_s = max(0, int(N_max + 1 - max_visible))
             end_s = start_s + max_visible - 1
-            if not is_inf_k:
+            if not is_inf_k and not is_inf_c:
                 end_s = min(int(N_max), end_s)
         else:
             start_s = 0
@@ -142,7 +145,7 @@ class MarkovChainView(QWidget):
             painter.drawText(QRectF(10, yc - 10, 24, 20), Qt.AlignmentFlag.AlignCenter, "...")
 
         # Right Ellipsis if more states exist
-        if is_inf_k or end_s < N_max:
+        if is_inf_k or is_inf_c or end_s < N_max:
             painter.setFont(QFont("Segoe UI", 9, QFont.Weight.Bold))
             painter.setPen(QColor("#6c7086"))
             painter.drawText(QRectF(w - 34, yc - 10, 24, 20), Qt.AlignmentFlag.AlignCenter, "...")
@@ -208,8 +211,8 @@ class MarkovChainView(QWidget):
             painter.setBrush(QBrush(QColor("#a6e3a1")))
             painter.drawPolygon(arrow_bwd)
 
-            # Backward rate label min(s_to, c)μ
-            mu_multiplier = min(s_to, c)
+            # Backward rate label: s_to * μ if ample servers (c = inf), else min(s_to, c)μ
+            mu_multiplier = s_to if is_inf_c else min(s_to, int(c))
             b_label = "μ" if mu_multiplier == 1 else f"{mu_multiplier}μ"
 
             painter.setFont(QFont("Segoe UI", 8, QFont.Weight.Bold))
@@ -245,10 +248,10 @@ class MarkovChainView(QWidget):
                 painter.drawText(QRectF(xc - 15, yc - r - 15, 30, 13), Qt.AlignmentFlag.AlignCenter, "▼")
             else:
                 # Inactive Node styling
-                is_capacity_limit = (not is_inf_k and s == N_max)
+                is_capacity_limit = (not is_inf_k and not is_inf_c and s == N_max)
                 if is_capacity_limit:
                     border_col = QColor("#f38ba8")  # Red for full capacity / drop boundary state
-                elif s >= c:
+                elif not is_inf_c and s >= c:
                     border_col = QColor("#585b70")  # Servers saturated, queue occupied
                 else:
                     border_col = QColor("#45475a")  # Free server capacity available

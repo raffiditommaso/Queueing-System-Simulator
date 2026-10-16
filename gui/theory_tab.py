@@ -4,6 +4,7 @@ continuous multi-page rendering, silky-smooth flicker-free zoom, and tab close h
 """
 
 import os
+import math
 import tempfile
 from typing import Optional, Tuple, List
 
@@ -451,8 +452,9 @@ class TheoryPdfTab(QWidget):
         self._reload_current(topic_index=self.combo_topic.currentIndex(), role=role)
 
     def _reload_current(self, topic_index: int, role: str):
-        lam = sum(1.0 / d.mean() for d in self.engine.arrival_dists.values() if d is not None)
-        mu = 1.0 / self.engine.service_dist.mean()
+        lam = sum(1.0 / max(1e-6, d.mean()) for d in self.engine.arrival_dists.values() if d is not None)
+        mean_s = self.engine.service_dist.mean()
+        mu = (1.0 / mean_s) if (not math.isinf(mean_s) and mean_s > 0) else 0.0
         rho = self.engine.get_metrics()['rho']
         self.load_topic(
             topic_index=topic_index,

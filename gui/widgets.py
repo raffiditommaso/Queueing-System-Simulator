@@ -87,7 +87,7 @@ class NumberStepper(QWidget):
     """Stepper Widget with dedicated [-] and [+] buttons and no internal spin arrows."""
     valueChanged = pyqtSignal(int)
 
-    def __init__(self, min_val: int = 1, max_val: int = 500, default_val: int = 1, parent=None):
+    def __init__(self, min_val: int = 1, max_val: int = 100000, default_val: int = 1, parent=None):
         super().__init__(parent)
         self.min_val = min_val
         self.max_val = max_val
@@ -105,7 +105,7 @@ class NumberStepper(QWidget):
         self.spin.setRange(min_val, max_val)
         self.spin.setValue(default_val)
         self.spin.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.spin.setFixedSize(48, 26)
+        self.spin.setFixedSize(58, 26)
         self.spin.setButtonSymbols(QAbstractSpinBox.ButtonSymbols.NoButtons)
         self.spin.valueChanged.connect(self.valueChanged.emit)
 
@@ -117,7 +117,7 @@ class NumberStepper(QWidget):
         self.layout.addWidget(self.btn_minus)
         self.layout.addWidget(self.spin)
         self.layout.addWidget(self.btn_plus)
-        self.setFixedSize(106, 26)
+        self.setFixedSize(116, 26)
 
     def _decrement(self):
         cur = self.spin.value()
@@ -134,6 +134,15 @@ class NumberStepper(QWidget):
 
     def setValue(self, val: int):
         self.spin.setValue(val)
+
+    def setRange(self, min_val: int, max_val: int):
+        self.min_val = min_val
+        self.max_val = max_val
+        self.spin.setRange(min_val, max_val)
+
+    def setMaximum(self, max_val: int):
+        self.max_val = max_val
+        self.spin.setMaximum(max_val)
 
     def setEnabled(self, enabled: bool):
         super().setEnabled(enabled)

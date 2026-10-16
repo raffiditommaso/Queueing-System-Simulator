@@ -81,7 +81,7 @@ class AnimatedCanvas(QWidget):
         # [Stage 1: Source] -> [Stage 2: Buffer/Drops] -> [Stage 3: Servers] -> [Stage 4: Sink]
         # ---------------------------------------------------------------
         m_servers = self.engine.c
-        max_servers = min(m_servers, 5)
+        max_servers = 5 if math.isinf(m_servers) else min(int(m_servers), 5)
 
         gap_x = max(18, min(32, int(w * 0.022)))
         src_w = max(195, min(225, int(w * 0.16)))
@@ -796,12 +796,15 @@ class AnimatedCanvas(QWidget):
         # STAGE 3: Servers Bank (m Servers) with Departure Blink
         # ---------------------------------------------------------------
         painter.setFont(QFont("Segoe UI", 9, QFont.Weight.Bold))
-        painter.setPen(QColor("#cdd6f4"))
-        painter.drawText(int(srv_x), int(srv_start_y - 8), f"Servers Bank (m = {self.engine.c})")
+        m_str = "∞" if math.isinf(self.engine.c) else str(self.engine.c)
+        painter.drawText(int(srv_x), int(srv_start_y - 8), f"Servers Bank (m = {m_str})")
 
-        mu_rate = 1.0 / max(1e-6, self.engine.service_dist.mean())
+        mean_s = self.engine.service_dist.mean()
+        mu_rate = (1.0 / mean_s) if (not math.isinf(mean_s) and mean_s > 0) else 0.0
 
         for s_idx in range(max_servers):
+            if s_idx >= len(self.engine.servers):
+                break
             server = self.engine.servers[s_idx]
             s_rect = server_rects[s_idx]
             is_busy = server.is_busy
@@ -915,7 +918,17 @@ class AnimatedCanvas(QWidget):
                 painter.setPen(QColor(17, 17, 27, int(255 * blink_val)))
                 painter.drawText(part_rect, Qt.AlignmentFlag.AlignCenter, f"#{server.last_departed_customer_id}")
 
-        if self.engine.c > max_servers:
+        if math.isinf(self.engine.c):
+            extra_busy = max(0, self.engine.busy_servers_count - max_servers)
+            more_txt = f"+{extra_busy} more busy servers (m = ∞)..." if extra_busy > 0 else "Ample Servers (m = ∞)..."
+            painter.setFont(QFont("Segoe UI", 7))
+            painter.setPen(QColor("#a6adc8"))
+            painter.drawText(
+                int(srv_x),
+                int(srv_start_y + total_srv_h + 14),
+                more_txt,
+            )
+        elif self.engine.c > max_servers:
             painter.setFont(QFont("Segoe UI", 7))
             painter.setPen(QColor("#a6adc8"))
             painter.drawText(

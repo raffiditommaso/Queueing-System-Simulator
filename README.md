@@ -39,7 +39,9 @@ The platform combines an event-driven stochastic simulation engine, a real-time 
 - **Event-Driven Simulation Engine (`core.engine.QueueSimEngine`)**:
   - Implements a precise calendar queue utilizing a min-heap priority queue (`heapq`) with zero-polling discrete-event transitions (`arrival`, `departure`).
   - Supports single-class FIFO queues and multi-class non-preemptive priority queueing ($P_0$ High, $P_1$ Medium, $P_2$ Low) with separate arrival streams.
-  - Dynamically reschedules arrival events when distribution parameters are tuned on-the-fly without event drops or pipeline stalling.
+  - Full support for **Infinite Servers ($m = \infty$)** (pure delay / ample server systems $M/M/\infty$ where customers never wait in queue: $A_c=0, \bar{\eta}=0, \rho=0, \pi_p=0, A=A_0$).
+  - Full support for **Zero Service Rate ($\mu = 0.00$ cust/s)** to model frozen or failing servers without `ZeroDivisionError` or simulation lockup.
+  - Dynamically reschedules arrival and departure events when distribution parameters are tuned on-the-fly without event drops or pipeline stalling.
   - Tracks continuous-time system occupancy integrals $\int k(t)\,dt$, queue waiting times $\int k_c(t)\,dt$, and server busy durations $\int b(t)\,dt$.
 
 - **Interactive 2D Animated Vector Canvas (`gui.canvas.AnimatedCanvas`)**:
@@ -380,11 +382,11 @@ usage: main.py [-h] [--cli] [--servers SERVERS] [--queue QUEUE]
 | Argument | Short | Type | Default | Description |
 | :--- | :---: | :---: | :---: | :--- |
 | `--cli` | &mdash; | flag | `False` | Run headlessly in terminal without launching the GUI. |
-| `--servers` | `-m`, `-c` | `int` | `1` | Number of identical parallel servers ($m \ge 1$). |
+| `--servers` | `-m`, `-c` | `str` | `'1'` | Number of identical parallel servers (integer $\ge 1$ or `'inf'`). |
 | `--queue` | `-K` | `str` | `'12'` | Queue buffer capacity (integer $\ge 0$ or `'inf'`). |
 | `--events` | &mdash; | `int` | `50000` | Total number of discrete events to simulate. |
 | `--lambda-rate` | &mdash; | `float` | `0.8` | Arrival rate $\lambda$ for standard single-class FIFO. |
-| `--service-rate` | &mdash; | `float` | `1.0` | Individual server service rate $\mu$. |
+| `--service-rate` | &mdash; | `float` | `1.0` | Individual server service rate $\mu$ ($\ge 0.00$; $0.00$ freezes departures). |
 | `--priority` | &mdash; | flag | `False` | Enable multi-class non-preemptive priority queueing. |
 | `--p0-rate` | &mdash; | `float` | `0.3` | High priority class $P_0$ arrival rate $\lambda_0$. |
 | `--p1-rate` | &mdash; | `float` | `0.3` | Medium priority class $P_1$ arrival rate $\lambda_1$. |

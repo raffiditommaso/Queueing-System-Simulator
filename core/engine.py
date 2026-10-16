@@ -27,8 +27,15 @@ class QueueSimEngine:
         if seed is not None:
             random.seed(seed)
 
-        self.c = max(1, int(n_servers))
-        self.K = math.inf if math.isinf(queue_capacity) else max(0, int(queue_capacity))
+        if (isinstance(n_servers, str) and n_servers.lower() == 'inf') or math.isinf(n_servers):
+            self.c = math.inf
+        else:
+            self.c = max(1, int(n_servers))
+
+        if (isinstance(queue_capacity, str) and queue_capacity.lower() == 'inf') or math.isinf(queue_capacity):
+            self.K = math.inf
+        else:
+            self.K = max(0, int(queue_capacity))
         self.priority_enabled = bool(priority_enabled)
 
         self.service_dist = service_dist or ExponentialDist(rate=1.0)
@@ -52,7 +59,10 @@ class QueueSimEngine:
         self.event_counter = 0
 
         self.event_heap = []
-        self.servers = [Server(id=i) for i in range(self.c)]
+        if math.isinf(self.c):
+            self.servers = [Server(id=i) for i in range(5)]
+        else:
+            self.servers = [Server(id=i) for i in range(self.c)]
         self.queues = defaultdict(deque)
 
         self.next_customer_id = 1
@@ -132,6 +142,30 @@ class QueueSimEngine:
         self.arrival_dists = new_arrival_dists
         self.ensure_arrival_events_scheduled()
 
+    def sync_service_dist(self, new_serv_dist: Distribution):
+        """Update service distribution and unfreeze any departures scheduled at inf."""
+        old_mean = self.service_dist.mean() if self.service_dist else 1.0
+        self.service_dist = new_serv_dist
+        new_mean = new_serv_dist.mean()
+        if math.isinf(old_mean) and not math.isinf(new_mean):
+            new_heap = []
+            inf_departures = set()
+            for item in self.event_heap:
+                t, c, ev_type, payload = item
+                if ev_type == 'departure' and math.isinf(t):
+                    inf_departures.add(payload)
+                else:
+                    new_heap.append(item)
+            heapq.heapify(new_heap)
+            self.event_heap = new_heap
+            for s_id in inf_departures:
+                if s_id < len(self.servers):
+                    srv = self.servers[s_id]
+                    if srv.is_busy and srv.current_customer:
+                        serv_dur = max(1e-6, self.service_dist.sample())
+                        depart_t = self.current_time + serv_dur
+                        self._schedule_event(depart_t, 'departure', srv.id)
+
     def _schedule_event(self, time: float, ev_type: str, payload):
         self.event_counter += 1
         heapq.heappush(self.event_heap, (time, self.event_counter, ev_type, payload))
@@ -153,7 +187,8 @@ class QueueSimEngine:
         if dt > 0:
             self.state_durations[self.total_in_system] += dt
             self.queue_state_durations[self.total_in_queue] += dt
-            self.server_capacity_integral += self.c * dt
+            if not math.isinf(self.c):
+                self.server_capacity_integral += self.c * dt
         self.last_event_time = new_time
 
     def step(self) -> Optional[dict]:
@@ -161,7 +196,7 @@ class QueueSimEngine:
         if not any(ev_type == 'arrival' for (_, _, ev_type, _) in self.event_heap):
             self.ensure_arrival_events_scheduled()
 
-        if not self.event_heap:
+        if not self.event_heap or math.isinf(self.event_heap[0][0]):
             return None
 
         event_time, _, ev_type, payload = heapq.heappop(self.event_heap)
@@ -188,52 +223,66 @@ class QueueSimEngine:
 
         return event_info
 
+    def _pop_next_waiting_customer(self) -> Optional[Customer]:
+        if self.priority_enabled:
+            for p in (0, 1, 2):
+                if self.queues[p]:
+                    return self.queues[p].popleft()
+            if self.queues[-1]:
+                return self.queues[-1].popleft()
+        else:
+            if self.queues[-1]:
+                return self.queues[-1].popleft()
+            for p in (0, 1, 2):
+                if self.queues[p]:
+                    return self.queues[p].popleft()
+        return None
+
+    def _dispatch_customer_to_server(self, cust: Customer, server: Server) -> dict:
+        serv_dur = max(1e-6, self.service_dist.sample())
+        cust.service_start_time = self.current_time
+        cust.service_duration = serv_dur
+        cust.server_idx = server.id
+
+        server.current_customer = cust
+        server.busy_start_time = self.current_time
+
+        depart_t = self.current_time + serv_dur
+        self._schedule_event(depart_t, 'departure', server.id)
+
+        p_label = f" (Prio: {PRIORITY_NAMES[cust.priority]})" if self.priority_enabled else ""
+        ev_dict = {
+            'time': self.current_time,
+            'type': 'QUEUE_TO_SERVICE',
+            'customer': cust,
+            'server_id': server.id,
+            'prio': cust.priority,
+            'msg': f"Dispatched: Cust #{cust.id}{p_label} from Queue -> Server {server.id+1}",
+        }
+        self.event_log.append(ev_dict)
+        return ev_dict
+
     def assign_idle_servers(self) -> List[dict]:
         """Dispatch any idle servers to pull waiting customers in strict priority order.
         Returns a list of event info dictionaries for assigned customers."""
         events = []
         for server in self.servers:
             if not server.is_busy:
-                next_cust = None
-                if self.priority_enabled:
-                    for p in (0, 1, 2):
-                        if self.queues[p]:
-                            next_cust = self.queues[p].popleft()
-                            break
-                    if next_cust is None and self.queues[-1]:
-                        next_cust = self.queues[-1].popleft()
-                else:
-                    if self.queues[-1]:
-                        next_cust = self.queues[-1].popleft()
-                    else:
-                        for p in (0, 1, 2):
-                            if self.queues[p]:
-                                next_cust = self.queues[p].popleft()
-                                break
-
+                next_cust = self._pop_next_waiting_customer()
                 if next_cust is not None:
-                    serv_dur = max(1e-6, self.service_dist.sample())
-                    next_cust.service_start_time = self.current_time
-                    next_cust.service_duration = serv_dur
-                    next_cust.server_idx = server.id
-
-                    server.current_customer = next_cust
-                    server.busy_start_time = self.current_time
-
-                    depart_t = self.current_time + serv_dur
-                    self._schedule_event(depart_t, 'departure', server.id)
-
-                    p_label = f" (Prio: {PRIORITY_NAMES[next_cust.priority]})" if self.priority_enabled else ""
-                    ev_dict = {
-                        'time': self.current_time,
-                        'type': 'QUEUE_TO_SERVICE',
-                        'customer': next_cust,
-                        'server_id': server.id,
-                        'prio': next_cust.priority,
-                        'msg': f"Dispatched: Cust #{next_cust.id}{p_label} from Queue -> Server {server.id+1}",
-                    }
-                    self.event_log.append(ev_dict)
+                    ev_dict = self._dispatch_customer_to_server(next_cust, server)
                     events.append(ev_dict)
+
+        if math.isinf(self.c):
+            while self.total_in_queue > 0:
+                next_cust = self._pop_next_waiting_customer()
+                if next_cust is None:
+                    break
+                server = Server(id=len(self.servers))
+                self.servers.append(server)
+                ev_dict = self._dispatch_customer_to_server(next_cust, server)
+                events.append(ev_dict)
+
         return events
 
     def _handle_arrival(self, prio: int) -> dict:
@@ -257,9 +306,12 @@ class QueueSimEngine:
         self.last_arrival_dropped = False
 
         idle_server = next((s for s in self.servers if not s.is_busy), None)
+        if idle_server is None and math.isinf(self.c):
+            idle_server = Server(id=len(self.servers))
+            self.servers.append(idle_server)
 
-        # Only admit directly to an idle server if no customers are already waiting in queue
-        if idle_server is not None and self.total_in_queue == 0:
+        # Only admit directly to an idle server if no customers are already waiting in queue (or ample servers)
+        if idle_server is not None and (self.total_in_queue == 0 or math.isinf(self.c)):
             serv_dur = max(1e-6, self.service_dist.sample())
             cust.service_start_time = self.current_time
             cust.service_duration = serv_dur
@@ -352,22 +404,7 @@ class QueueSimEngine:
 
             server.current_customer = None
 
-        next_cust = None
-        if self.priority_enabled:
-            for p in (0, 1, 2):
-                if self.queues[p]:
-                    next_cust = self.queues[p].popleft()
-                    break
-            if next_cust is None and self.queues[-1]:
-                next_cust = self.queues[-1].popleft()
-        else:
-            if self.queues[-1]:
-                next_cust = self.queues[-1].popleft()
-            else:
-                for p in (0, 1, 2):
-                    if self.queues[p]:
-                        next_cust = self.queues[p].popleft()
-                        break
+        next_cust = self._pop_next_waiting_customer()
 
         if next_cust is not None:
             serv_dur = max(1e-6, self.service_dist.sample())
@@ -392,6 +429,11 @@ class QueueSimEngine:
                 'msg': f"Departure: Cust #{departing_cust.id} left. Server {server.id+1} starts Cust #{next_cust.id}",
             }
         else:
+            if math.isinf(self.c):
+                while len(self.servers) > 5 and not self.servers[-1].is_busy:
+                    popped_srv = self.servers.pop()
+                    self.retired_busy_time += popped_srv.total_busy_time
+
             return {
                 'time': self.current_time,
                 'type': 'DEPARTURE_IDLE',
@@ -424,8 +466,12 @@ class QueueSimEngine:
         for s in self.servers:
             if s.is_busy and s.busy_start_time is not None:
                 busy_time += (self.current_time - s.busy_start_time)
-        denom = self.server_capacity_integral if self.server_capacity_integral > 0 else (self.c * T)
-        rho_emp = busy_time / denom
+
+        if math.isinf(self.c):
+            rho_emp = 0.0
+        else:
+            denom = self.server_capacity_integral if self.server_capacity_integral > 0 else (self.c * T)
+            rho_emp = (busy_time / denom) if denom > 0 else 0.0
 
         W_emp = (self.total_system_time / self.customers_served_total) if self.customers_served_total > 0 else 0.0
         Wq_emp = (self.total_waiting_time / self.customers_served_total) if self.customers_served_total > 0 else 0.0

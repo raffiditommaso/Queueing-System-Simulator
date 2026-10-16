@@ -5,6 +5,7 @@ for the Queueing System Simulator.
 """
 
 import sys
+import math
 import argparse
 
 from core.distributions import ExponentialDist
@@ -22,8 +23,8 @@ def parse_arguments() -> argparse.Namespace:
         help="Run headlessly in CLI mode without GUI"
     )
     parser.add_argument(
-        '--servers', '-m', '-c', type=int, default=1,
-        help="Number of parallel servers m (integer >= 1)"
+        '--servers', '-m', '-c', type=str, default='1',
+        help="Number of parallel servers m (integer >= 1 or 'inf')"
     )
     parser.add_argument(
         '--queue', '-K', type=str, default='12',
@@ -75,7 +76,7 @@ def run_headless_cli(args: argparse.Namespace) -> None:
     except Exception:
         pass
 
-    c = max(1, int(args.servers))
+    c = float('inf') if str(args.servers).lower() == 'inf' else max(1, int(args.servers))
     K = float('inf') if args.queue.lower() == 'inf' else int(args.queue)
     prio_enabled = bool(args.priority and not args.no_priority)
 
@@ -102,10 +103,11 @@ def run_headless_cli(args: argparse.Namespace) -> None:
     kendall = TheoreticalModels.get_kendall_notation(
         arr_dists, serv_dist, c, K, prio_enabled
     )
+    c_str = "∞" if math.isinf(c) else str(c)
     print("=" * 70)
     print(" ADVANCED QUEUEING SYSTEM SIMULATOR (CLI HEADLESS BATCH)")
     print(f" Model: {kendall}")
-    print(f" Servers: m = {c} | Buffer Capacity: K = {K}")
+    print(f" Servers: m = {c_str} | Buffer Capacity: K = {K}")
     if prio_enabled:
         print(
             f" Priority Rates: λ₀={args.p0_rate}, λ₁={args.p1_rate}, "
@@ -118,13 +120,16 @@ def run_headless_cli(args: argparse.Namespace) -> None:
 
     sim.run_batch(max_events=args.events)
     m = sim.get_metrics()
-    a0 = (args.lambda_rate / args.service_rate) if not prio_enabled else ((args.p0_rate + args.p1_rate + args.p2_rate) / args.service_rate)
+    tot_lam = (args.p0_rate + args.p1_rate + args.p2_rate) if prio_enabled else args.lambda_rate
+    a0 = (tot_lam / args.service_rate) if args.service_rate > 0 else float('inf')
+    a0_str = f"{a0:.4f}" if not math.isinf(a0) else "∞"
+    a0_per_server_str = "0.0000" if math.isinf(c) else (f"{a0/c:.4f}" if not math.isinf(a0) else "∞")
 
     print(f"Simulation Time Reached:      t = {m['T']:.2f} s")
     print(f"Total Arrivals:               a(t) = {m['arrived']:,}")
     print(f"Successfully Served:          d(t) = {m['served']:,}")
     print(f"Dropped / Rejected:           a_p(t) = {m['dropped']:,} (Blocking π_p: {m['p_loss']*100:.2f}%)")
-    print(f"Theoretical Offered Traffic:  A₀ = {a0:.4f} Erlang (per server: {a0/c:.4f})")
+    print(f"Theoretical Offered Traffic:  A₀ = {a0_str} Erlang (per server: {a0_per_server_str})")
     print(f"Server Utilization ρ:         {m['rho']:.4f}")
     print(f"Average in System (A):        {m['L']:.4f} Erlang / cust")
     print(f"Average in Queue (A_c):       {m['Lq']:.4f} cust")

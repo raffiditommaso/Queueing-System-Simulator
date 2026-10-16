@@ -263,8 +263,8 @@ def get_theory_html_css(zoom_factor: float = 1.0) -> str:
         }}
         .eq-table {{
             width: 100%;
-            margin-top: 8px;
-            margin-bottom: 8px;
+            margin-top: 4px;
+            margin-bottom: 4px;
             border-collapse: collapse;
             page-break-inside: avoid;
             break-inside: avoid;
@@ -274,7 +274,7 @@ def get_theory_html_css(zoom_factor: float = 1.0) -> str:
             font-size: {sub_pt}pt;
             color: #181818;
             text-align: right;
-            padding-right: 6px;
+            padding-right: 4px;
             white-space: nowrap;
         }}
         .where-label {{
