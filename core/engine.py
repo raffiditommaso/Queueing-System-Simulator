@@ -18,7 +18,7 @@ class QueueSimEngine:
     def __init__(
         self,
         n_servers: int = 1,
-        queue_capacity: float = 8,
+        queue_capacity: float = 12,
         service_dist: Optional[Distribution] = None,
         arrival_dists: Optional[Dict[int, Distribution]] = None,
         priority_enabled: bool = False,
@@ -479,4 +479,14 @@ class QueueSimEngine:
             'arrived': self.customers_arrived_total,
             'served': self.customers_served_total,
             'dropped': self.customers_dropped_total,
+            # Slideset aliases (Cerroni notation)
+            'A': L_emp,
+            'A_c': Lq_emp,
+            'A_s': (busy_time / T) if T > 0 else 0.0,
+            'delta_bar': W_emp,
+            'eta_bar': Wq_emp,
+            'pi_p': p_loss_emp,
+            'lambda_s': lambda_eff,
+            'lambda_p': (self.customers_dropped_total / T) if T > 0 else 0.0,
+            'littles_error_A': littles_error_L,
         }

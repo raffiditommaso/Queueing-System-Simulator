@@ -87,7 +87,7 @@ class QueueSimulatorApp(QMainWindow):
 
         self.engine = QueueSimEngine(
             n_servers=max(1, int(cli_args.servers)) if cli_args else 1,
-            queue_capacity=float(cli_args.queue) if cli_args and cli_args.queue != 'inf' else 8,
+            queue_capacity=float(cli_args.queue) if cli_args and cli_args.queue != 'inf' else 12,
             priority_enabled=priority_flag,
             seed=cli_args.seed if cli_args else 42,
         )
@@ -170,16 +170,16 @@ class QueueSimulatorApp(QMainWindow):
         self.lbl_sim_time = QLabel("Clock: 0.0s")
         self.lbl_sim_time.setStyleSheet("font-size: 11px; font-weight: bold; color: #89b4fa;")
 
-        self.lbl_rho_header = QLabel("Avg Server Utilization U: 0.80")
+        self.lbl_rho_header = QLabel("Avg Server Utilization ρ: 0.80")
         self.lbl_rho_header.setStyleSheet("font-size: 11px; font-weight: bold; color: #cdd6f4;")
 
         self.btn_rho_header_theory = QPushButton("?")
         self.btn_rho_header_theory.setFixedSize(22, 22)
-        self.btn_rho_header_theory.setToolTip("View explanation, definition, and computation for Average Server Utilization (U)")
+        self.btn_rho_header_theory.setToolTip("View explanation, definition, and computation for Average Server Utilization (ρ)")
         self.btn_rho_header_theory.setStyleSheet(QUESTION_BTN_STYLE)
         self.btn_rho_header_theory.clicked.connect(self._show_server_utilization_theory)
 
-        self.btn_warning_why = QPushButton("Warning: Unstable (ρ ≥ 1.0) - See Why")
+        self.btn_warning_why = QPushButton("Warning: Overload (A₀/m ≥ 1.0) - See Why")
         self.btn_warning_why.setStyleSheet(
             "background-color: #f38ba8; color: #11111b; font-size: 10px; padding: 2px 6px; border-radius: 3px;"
         )
@@ -287,7 +287,7 @@ class QueueSimulatorApp(QMainWindow):
 
         arch_layout.addWidget(QLabel("Queue Buffer (K):"), 1, 0)
         self.stepper_queue = NumberStepper(
-            min_val=0, max_val=500, default_val=8 if not math.isinf(self.engine.K) else 50
+            min_val=0, max_val=500, default_val=12 if not math.isinf(self.engine.K) else 50
         )
         self.stepper_queue.valueChanged.connect(self._apply_config)
         arch_layout.addWidget(self.stepper_queue, 1, 1, Qt.AlignmentFlag.AlignRight)
@@ -397,7 +397,7 @@ class QueueSimulatorApp(QMainWindow):
 
         # Page 0: Exponential
         p0_arr, self.lbl_arr_rate, self.slider_arr_rate, self.spin_arr_rate = make_param_control(
-            "Arrival Rate λ (cust/s)", 0.05, 20.0, 0.05, 0.80
+            "Arrival Rate λ (cust/s)", 0.05, 10.0, 0.05, 0.80
         )
         connect_pair(
             self.slider_arr_rate, self.spin_arr_rate, self.lbl_arr_rate,
@@ -544,7 +544,7 @@ class QueueSimulatorApp(QMainWindow):
             "Phase 1 Rate r₁ (cust/s): {:.2f}", self._apply_config,
         )
         row_r2, self.lbl_arr_hyper_r2, self.slider_arr_hyper_r2, self.spin_arr_hyper_r2 = make_param_control(
-            "Phase 2 Rate r₂ (cust/s)", 0.10, 20.0, 0.05, 2.00
+            "Phase 2 Rate r₂ (cust/s)", 0.10, 10.0, 0.05, 2.00
         )
         connect_pair(
             self.slider_arr_hyper_r2, self.spin_arr_hyper_r2, self.lbl_arr_hyper_r2,
@@ -618,7 +618,7 @@ class QueueSimulatorApp(QMainWindow):
 
         # Page 0: Exponential
         sp0_serv, self.lbl_serv_rate, self.slider_serv_rate, self.spin_serv_rate = make_param_control(
-            "Service Rate μ (cust/s)", 0.10, 20.0, 0.05, 1.00
+            "Service Rate μ (cust/s)", 0.10, 10.0, 0.05, 1.00
         )
         connect_pair(
             self.slider_serv_rate, self.spin_serv_rate, self.lbl_serv_rate,
@@ -765,7 +765,7 @@ class QueueSimulatorApp(QMainWindow):
             "Phase 1 Rate r₁ (cust/s): {:.2f}", self._apply_config,
         )
         srow_r2, self.lbl_serv_hyper_r2, self.slider_serv_hyper_r2, self.spin_serv_hyper_r2 = make_param_control(
-            "Phase 2 Rate r₂ (cust/s)", 0.10, 20.0, 0.05, 2.00
+            "Phase 2 Rate r₂ (cust/s)", 0.10, 10.0, 0.05, 2.00
         )
         connect_pair(
             self.slider_serv_hyper_r2, self.spin_serv_hyper_r2, self.lbl_serv_hyper_r2,
@@ -812,7 +812,7 @@ class QueueSimulatorApp(QMainWindow):
         stab_layout = QVBoxLayout(self.grp_stability)
         stab_layout.setSpacing(4)
 
-        self.lbl_stab_status = QLabel("Stable System (ρ = 0.80 < 1.0)")
+        self.lbl_stab_status = QLabel("Stable System (A₀/m = 0.80 < 1.0)")
         self.lbl_stab_status.setStyleSheet("font-size: 11px; font-weight: bold; color: #a6e3a1;")
         stab_layout.addWidget(self.lbl_stab_status)
 
@@ -958,11 +958,11 @@ class QueueSimulatorApp(QMainWindow):
             fl.addWidget(lbl_v)
             return frame, lbl_v
 
-        self.card_n, self.val_n = make_card("Occupancy N(t)", "0", "#cdd6f4", 8)
-        self.card_served, self.val_served = make_card("Served / Arrived", "0 / 0", "#a6e3a1", 14)
-        self.card_drop, self.val_drop = make_card("Rejected Drops", "0 (0.0%)", "#f38ba8", 12)
-        self.card_wait, self.val_wait = make_card("Avg Wait Wq", "0.00s", "#89b4fa", 11)
-        self.card_littles, self.val_littles = make_card("Little's Law Error", "0.000", "#f9e2af", 13)
+        self.card_n, self.val_n = make_card("Traffic k(t)", "0", "#cdd6f4", 8)
+        self.card_served, self.val_served = make_card("Departures / Arrivals d / a", "0 / 0", "#a6e3a1", 14)
+        self.card_drop, self.val_drop = make_card("Blocking Probability π_p", "0 (0.0%)", "#f38ba8", 12)
+        self.card_wait, self.val_wait = make_card("Avg Waiting Time η̄", "0.00s", "#89b4fa", 11)
+        self.card_littles, self.val_littles = make_card("Little's Law |A - λ_s δ̄|", "0.000", "#f9e2af", 13)
 
         layout.addWidget(self.card_n)
         layout.addWidget(self.card_served)
@@ -1262,7 +1262,7 @@ class QueueSimulatorApp(QMainWindow):
     def _show_theory_dialog(self):
         lam = sum(1.0 / d.mean() for d in self.engine.arrival_dists.values() if d is not None)
         mu = 1.0 / self.engine.service_dist.mean()
-        rho = lam / (self.engine.c * mu)
+        rho = self.engine.get_metrics()['rho']
         self.show_theory_tab(topic_index=6, rho=rho, lam=lam, mu=mu, m=self.engine.c)
 
     def _show_arr_dist_theory(self):
@@ -1280,7 +1280,7 @@ class QueueSimulatorApp(QMainWindow):
         topic_idx = 7 + metric_idx
         lam = sum(1.0 / d.mean() for d in self.engine.arrival_dists.values() if d is not None)
         mu = 1.0 / self.engine.service_dist.mean()
-        rho = lam / max(1e-6, self.engine.c * mu)
+        rho = self.engine.get_metrics()['rho']
         self.show_theory_tab(topic_index=topic_idx, rho=rho, lam=lam, mu=mu, m=self.engine.c)
 
     # -------------------------------------------------------------------
@@ -1364,20 +1364,20 @@ class QueueSimulatorApp(QMainWindow):
         c_servers = self.stepper_servers.value()
         q_cap = math.inf if self.chk_inf_queue.isChecked() else self.stepper_queue.value()
 
-        rho = lam_total / (c_servers * mu)
+        a0_per_server = lam_total / (c_servers * mu)
 
-        if rho < 0.85:
-            self.lbl_stab_status.setText(f"Stable System (ρ = {rho:.2f} < 1.0)")
+        if a0_per_server < 0.85:
+            self.lbl_stab_status.setText(f"Stable System (A₀/m = {a0_per_server:.2f} < 1.0)")
             self.lbl_stab_status.setStyleSheet("font-size: 11px; font-weight: bold; color: #a6e3a1;")
             self.btn_why.setVisible(False)
             self.btn_warning_why.setVisible(False)
-        elif rho < 1.0:
-            self.lbl_stab_status.setText(f"High Congestion (ρ = {rho:.2f})")
+        elif a0_per_server < 1.0:
+            self.lbl_stab_status.setText(f"High Congestion (A₀/m = {a0_per_server:.2f})")
             self.lbl_stab_status.setStyleSheet("font-size: 11px; font-weight: bold; color: #f9e2af;")
             self.btn_why.setVisible(False)
             self.btn_warning_why.setVisible(False)
         else:
-            self.lbl_stab_status.setText(f"Warning: Unstable / Overload (ρ = {rho:.2f} ≥ 1.0)")
+            self.lbl_stab_status.setText(f"Warning: Overload / Unstable (A₀/m = {a0_per_server:.2f} ≥ 1.0)")
             self.lbl_stab_status.setStyleSheet("font-size: 11px; font-weight: bold; color: #f38ba8;")
             self.btn_why.setVisible(True)
             self.btn_warning_why.setVisible(True)
@@ -1453,7 +1453,7 @@ class QueueSimulatorApp(QMainWindow):
         self.lbl_kendall.setText(f"[ {kendall} ]")
         if self.lbl_sim_time is not None:
             self.lbl_sim_time.setText(f"Clock: {m['T']:.1f}s")
-        self.lbl_rho_header.setText(f"Avg Server Utilization U: {m['rho']:.2f}")
+        self.lbl_rho_header.setText(f"Avg Server Utilization ρ: {m['rho']:.2f}")
 
         self.val_n.setText(f"{self.engine.total_in_system} (Q: {self.engine.total_in_queue})")
         self.val_served.setText(f"{m['served']} / {m['arrived']}")
@@ -1525,13 +1525,13 @@ class QueueSimulatorApp(QMainWindow):
         times = list(self.engine.time_history)[-300:]
         occs = list(self.engine.occupancy_history)[-300:]
         ax1.step(times, occs, where='post', color="#89b4fa", linewidth=1.5)
-        ax1.set_title("System Occupancy N(t) vs Time", color="#cdd6f4", fontsize=10)
+        ax1.set_title("Traffic in System k(t) vs Time", color="#cdd6f4", fontsize=10)
         ax1.set_xlabel("Time (s)", color="#a6adc8", fontsize=8)
-        ax1.set_ylabel("Customers in System", color="#a6adc8", fontsize=8)
+        ax1.set_ylabel("Customers in System k(t)", color="#a6adc8", fontsize=8)
         ax1.grid(True, color="#313244", linestyle="--", alpha=0.6)
 
         # ---------------------------------------------------------------
-        # Plot 2: State Probabilities Pn vs Full Theoretical Curve
+        # Plot 2: State Probabilities P(k) vs Full Theoretical Curve
         # ---------------------------------------------------------------
         pn = m['p_n']
         c = self.engine.c
@@ -1549,7 +1549,7 @@ class QueueSimulatorApp(QMainWindow):
         sim_probs = [pn.get(s, 0.0) for s in display_states]
 
         # Bar plot of simulated probabilities
-        ax2.bar(display_states, sim_probs, color="#a6e3a1", alpha=0.7, label="Simulated P(n)")
+        ax2.bar(display_states, sim_probs, color="#a6e3a1", alpha=0.7, label="Simulated P(k)")
 
         # Compute theoretical PMF
         lam_equiv = sum(1.0 / d.mean() for d in self.engine.arrival_dists.values() if d is not None)
@@ -1574,33 +1574,33 @@ class QueueSimulatorApp(QMainWindow):
                 ax2.plot(display_states, theo_p, color="#f38ba8", marker='o', linewidth=2.0, markersize=5, label=lbl)
             elif math.isinf(K) and (lam_equiv / (c * mu_equiv)) >= 1.0:
                 ax2.text(
-                    0.5, 0.85, "ρ ≥ 1.0 on K=inf: No steady-state curve (Unstable)",
+                    0.5, 0.85, "A₀/m ≥ 1.0 on K=inf: No steady-state curve (Unstable)",
                     transform=ax2.transAxes, color="#f38ba8", fontsize=8, ha="center",
                 )
 
-        ax2.set_title("State Probabilities P(n)", color="#cdd6f4", fontsize=10)
-        ax2.set_xlabel("State n (In System)", color="#a6adc8", fontsize=8)
+        ax2.set_title("State Probabilities P(k)", color="#cdd6f4", fontsize=10)
+        ax2.set_xlabel("State k (In System)", color="#a6adc8", fontsize=8)
         ax2.set_ylabel("Probability", color="#a6adc8", fontsize=8)
         ax2.set_xticks(display_states)
         ax2.legend(fontsize=8, facecolor="#1e1e2e", edgecolor="#313244", labelcolor="#cdd6f4")
         ax2.grid(True, color="#313244", linestyle="--", alpha=0.6)
 
         # ---------------------------------------------------------------
-        # Plot 3: Waiting Time Wq
+        # Plot 3: Waiting Time η
         # ---------------------------------------------------------------
         if not self.engine.priority_enabled:
             wait_times = [c.waiting_time for c in self.engine.completed_customers]
             if wait_times:
                 bins = min(30, max(10, int(len(wait_times) ** 0.5)))
                 ax3.hist(wait_times, bins=bins, color="#89b4fa", alpha=0.8, edgecolor="#11111b")
-            ax3.set_title("Waiting Time Wq Histogram (s)", color="#cdd6f4", fontsize=10)
-            ax3.set_xlabel("Wait Time Wq (s)", color="#a6adc8", fontsize=8)
+            ax3.set_title("Waiting Time η Histogram (s)", color="#cdd6f4", fontsize=10)
+            ax3.set_xlabel("Wait Time η (s)", color="#a6adc8", fontsize=8)
         else:
             prios = ["High (P₀)", "Med (P₁)", "Low (P₂)"]
             wq_vals = [m['Wq_prio'].get(0, 0.0), m['Wq_prio'].get(1, 0.0), m['Wq_prio'].get(2, 0.0)]
             colors = [PRIORITY_COLORS[0], PRIORITY_COLORS[1], PRIORITY_COLORS[2]]
             ax3.bar(prios, wq_vals, color=colors, alpha=0.85)
-            ax3.set_title("Mean Wait Wq by Priority Class", color="#cdd6f4", fontsize=10)
+            ax3.set_title("Mean Wait η̄ by Priority Class", color="#cdd6f4", fontsize=10)
             ax3.set_ylabel("Seconds", color="#a6adc8", fontsize=8)
         ax3.grid(True, color="#313244", linestyle="--", alpha=0.6)
 
@@ -1611,9 +1611,9 @@ class QueueSimulatorApp(QMainWindow):
             t_sub = list(self.engine.time_history)[-300:]
             d_sub = list(self.engine.drop_count_history)[-300:]
             ax4.plot(t_sub, d_sub, color="#f38ba8", linewidth=1.5)
-            ax4.set_title("Cumulative Dropped Customers vs Time", color="#cdd6f4", fontsize=10)
+            ax4.set_title("Cumulative Dropped Customers a_p(t) vs Time", color="#cdd6f4", fontsize=10)
             ax4.set_xlabel("Time (s)", color="#a6adc8", fontsize=8)
-            ax4.set_ylabel("Total Drops", color="#a6adc8", fontsize=8)
+            ax4.set_ylabel("Total Rejected a_p(t)", color="#a6adc8", fontsize=8)
         else:
             prios = ["High (P₀)", "Med (P₁)", "Low (P₂)"]
             ploss_vals = [
@@ -1622,8 +1622,8 @@ class QueueSimulatorApp(QMainWindow):
                 m['p_loss_prio'].get(2, 0.0) * 100.0,
             ]
             ax4.bar(prios, ploss_vals, color="#f38ba8", alpha=0.85)
-            ax4.set_title("Customer Loss Rate P_loss (%)", color="#cdd6f4", fontsize=10)
-            ax4.set_ylabel("Loss %", color="#a6adc8", fontsize=8)
+            ax4.set_title("Blocking Probability π_p (%) by Priority Class", color="#cdd6f4", fontsize=10)
+            ax4.set_ylabel("Blocking π_p (%)", color="#a6adc8", fontsize=8)
         ax4.grid(True, color="#313244", linestyle="--", alpha=0.6)
 
         self.fig.tight_layout()
@@ -1672,14 +1672,14 @@ class QueueSimulatorApp(QMainWindow):
                 theo_note += "General G/G/m queue."
 
         theo_note += (
-            f"\n\nLittle's Law Live Verification: L = λ_eff * W\n"
-            f"Simulated L = {m['L']:.4f} | λ_eff * W = ({m['lambda_eff']:.4f} * {m['W']:.4f}) = {m['littles_L']:.4f}\n"
-            f"Discrepancy |Δ| = |L - λ_eff*W| = {m['littles_error_L']:.5f} (Converges to 0)."
+            f"\n\nLittle's Law Live Verification: A = λ_s * δ̄\n"
+            f"Simulated A = {m['L']:.4f} | λ_s * δ̄ = ({m['lambda_eff']:.4f} * {m['W']:.4f}) = {m['littles_L']:.4f}\n"
+            f"Discrepancy |Δ| = |A - λ_s*δ̄| = {m['littles_error_L']:.5f} (Converges to 0)."
         )
 
         is_unstable = bool(theo and theo.get('unstable', False))
         if is_unstable:
-            theo_note += " [UNSTABLE SYSTEM: Traffic demand exceeds capacity (ρ >= 1.0 with K = inf). Backlog and delays diverge to infinity.]"
+            theo_note += " [UNSTABLE SYSTEM: Traffic demand exceeds capacity (A₀/m >= 1.0 with K = inf). Backlog and delays diverge to infinity.]"
 
         self.lbl_theory_notes.setText(theo_note)
 
@@ -1696,15 +1696,15 @@ class QueueSimulatorApp(QMainWindow):
             return (f"{t_val:.4f}", f"{abs(sim_val - t_val) / max(1e-4, t_val) * 100:.2f}%")
 
         if is_unstable:
-            theo_u = "1.0000 (Saturated)"
-            err_u = f"{abs(m['rho'] - 1.0) * 100:.2f}%"
+            theo_rho = "1.0000 (Saturated)"
+            err_rho = f"{abs(m['rho'] - 1.0) * 100:.2f}%"
         elif not theo:
-            theo_u = "N/A"
-            err_u = "-"
+            theo_rho = "N/A"
+            err_rho = "-"
         else:
-            t_u = theo.get('rho', 0.0)
-            theo_u = f"{t_u:.4f}"
-            err_u = f"{abs(m['rho'] - t_u) / max(1e-4, t_u) * 100:.2f}%"
+            t_rho = theo.get('rho', 0.0)
+            theo_rho = f"{t_rho:.4f}"
+            err_rho = f"{abs(m['rho'] - t_rho) / max(1e-4, t_rho) * 100:.2f}%"
 
         theo_L, err_L = fmt_theo_and_err(m['L'], theo, 'L')
         theo_Lq, err_Lq = fmt_theo_and_err(m['Lq'], theo, 'Lq')
@@ -1715,13 +1715,13 @@ class QueueSimulatorApp(QMainWindow):
         theo_ploss = f"{p_loss_theo*100:.2f}%" if theo else "N/A"
 
         rows = [
-            ("Server Utilization U (Carried)", f"{m['rho']:.4f}", theo_u, err_u),
-            ("Avg System Customers L", f"{m['L']:.4f}", theo_L, err_L),
-            ("Avg Queue Length Lq", f"{m['Lq']:.4f}", theo_Lq, err_Lq),
-            ("Avg System Time W (s)", f"{m['W']:.4f}", theo_W, err_W),
-            ("Avg Wait Time Wq (s)", f"{m['Wq']:.4f}", theo_Wq, err_Wq),
-            ("Loss Probability P_loss", f"{m['p_loss']*100:.2f}%", theo_ploss, "-"),
-            ("Little's Law L_diff", f"{m['littles_error_L']:.5f}", "0.00000 (Exact)", "Verified"),
+            ("Server Utilization ρ", f"{m['rho']:.4f}", theo_rho, err_rho),
+            ("Avg Traffic in System A", f"{m['L']:.4f}", theo_L, err_L),
+            ("Avg Queue Backlog A_c", f"{m['Lq']:.4f}", theo_Lq, err_Lq),
+            ("Avg Sojourn Time δ̄ (s)", f"{m['W']:.4f}", theo_W, err_W),
+            ("Avg Waiting Time η̄ (s)", f"{m['Wq']:.4f}", theo_Wq, err_Wq),
+            ("Blocking Probability π_p", f"{m['p_loss']*100:.2f}%", theo_ploss, "-"),
+            ("Little's Law |A - λ_s δ̄|", f"{m['littles_error_L']:.5f}", "0.00000 (Exact)", "Verified"),
         ]
 
         if self.table_theory.rowCount() != len(rows):

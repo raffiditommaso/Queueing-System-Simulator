@@ -149,7 +149,7 @@ def generate_theory_html(
         ("Hyperexponential Distribution (Kendall: H_2)", "H_2"),
         ("Pareto Distribution (Kendall: Heavy-Tailed)", "Pareto"),
         ("Stochastic Stability Theory & Ergodicity", "Instability"),
-        ("Metric Theory: Average Server Utilization U (Traffic Intensity ρ)", "rho"),
+        ("Metric Theory: Average Server Utilization ρ (Offered Traffic A₀)", "rho"),
         ("Metric Theory: Avg System Customers L", "L"),
         ("Metric Theory: Avg Queue Length Lq", "Lq"),
         ("Metric Theory: Avg System Time W", "W"),
@@ -240,7 +240,7 @@ def generate_theory_html(
         <p>The first moment (mean), variance, and squared coefficient of variation are:</p>
         {eq2}
 
-        <h2>IV. Key Properties for Network Students</h2>
+        <h2>IV. Key Properties</h2>
         <ul>
             <li><b>The Memoryless Property:</b> The Exponential distribution is the <i>only</i> continuous distribution where the past has no effect on the future:</li>
         </ul>
@@ -322,7 +322,7 @@ def generate_theory_html(
         <p>The queueing waiting time in an <i>M</i>/<i>D</i>/1 queue compared to an <i>M</i>/<i>M</i>/1 queue is:</p>
         {eq2}
 
-        <h2>IV. Key Properties for Network Students</h2>
+        <h2>IV. Key Properties</h2>
         <ul>
             <li><b>The 50% Delay Reduction Rule:</b> Eliminating service-time variance (replacing exponential service times with fixed service times of the same average) cuts average queue waiting time <i>W<sub>q</sub></i> and average queue length <i>L<sub>q</sub></i> <b>exactly in half</b> across all stable utilization levels (0 &lt; <i>&rho;</i> &lt; 1).</li>
             <li><b>Zero Jitter:</b> Because service duration is perfectly constant, any buffering delay is caused purely by customer arrival randomness, never by customer service time variations.</li>
@@ -338,7 +338,7 @@ def generate_theory_html(
         </table>
         <div class="example-box">
             <p class="example-title">Numerical Comparison (M/M/1 vs. M/D/1 at &rho; = 0.80)</p>
-            <p>Assume service time is fixed at <i>D</i> = {d_val:.2f} s (<i>&mu;</i> = {rate_eq:.2f} cust/s) with offered load <i>&rho;</i> = 0.80:</p>
+            <p>Assume service time is fixed at <i>D</i> = {d_val:.2f} s (<i>&mu;</i> = {rate_eq:.2f} cust/s) with offered traffic <i>A</i><sub>0</sub> = 0.80 Erlang (server utilization <i>&rho;</i> = 0.80):</p>
             <ol>
                 <li><b>With Exponential Customers (<i>M</i>/<i>M</i>/1):</b>
                     <i>W<sub>q</sub></i> = [0.80 / (1 &minus; 0.80)] &times; {d_val:.2f} = 4.0 &times; {d_val:.2f} = <b>{4.0*d_val:.2f} s</b>.</li>
@@ -406,7 +406,7 @@ def generate_theory_html(
         <p>The mean, variance, and squared coefficient of variation are:</p>
         {eq2}
 
-        <h2>IV. Key Properties for Network Students</h2>
+        <h2>IV. Key Properties</h2>
         <ul>
             <li><b>Strict Worst-Case Limit:</b> Unlike Exponential or Pareto distributions (which have unbounded tails), a Uniform variable has a hard worst-case bound (<i>b</i>). A customer service never stalls past <i>b</i>.</li>
             <li><b>Lower Delays than Exponential:</b> Because <i>C<sub>v</sub></i><sup>2</sup> &lt; 0.333 &lt; 1, queueing delay in an <i>M</i>/<i>U</i>/1 queue is always significantly lower than in an <i>M</i>/<i>M</i>/1 queue with the same average service duration.</li>
@@ -488,7 +488,7 @@ def generate_theory_html(
         <p>The overall moments are:</p>
         {eq2}
 
-        <h2>IV. Key Properties for Network Students</h2>
+        <h2>IV. Key Properties</h2>
         <ul>
             <li><b>Bridging Random and Deterministic Behavior:</b>
                 <ul>
@@ -578,7 +578,7 @@ def generate_theory_html(
         <p>The first moment, second moment, and squared coefficient of variation are:</p>
         {eq2}
 
-        <h2>IV. Key Properties for Network Students</h2>
+        <h2>IV. Key Properties</h2>
         <ul>
             <li><b>Series vs. Parallel Contrast:</b> Erlang puts stages in series (averaging out randomness, <i>C<sub>v</sub></i><sup>2</sup> &lt; 1), while Hyperexponential puts stages in parallel (amplifying randomness, <i>C<sub>v</sub></i><sup>2</sup> &gt; 1).</li>
             <li><b>Head-of-Line Blocking Penalty:</b> When service times follow <i>H</i><sub>2</sub>, occasional large jobs from the slow branch block the server while many small jobs pile up behind them. This inflates average waiting time by the Pollaczek-Khinchine factor (1 + <i>C<sub>v</sub></i><sup>2</sup>) / 2 = <b>{pk_factor:.2f}&times;</b> compared to an exponential server of the same average speed!</li>
@@ -657,7 +657,7 @@ def generate_theory_html(
         <p>The existence of moments depends strictly on the tail index <i>&alpha;</i>:</p>
         {eq2}
 
-        <h2>IV. Key Properties for Network Students</h2>
+        <h2>IV. Key Properties</h2>
         <ul>
             <li><b>The Infinite Variance Trap (1 &lt; <i>&alpha;</i> &le; 2):</b> When <i>&alpha;</i> &le; 2, the mean is finite, but the second moment is infinite. In an infinite-buffer queue, the Pollaczek-Khinchine formula predicts that average queueing delay becomes <b>infinite (<i>W<sub>q</sub></i> &rarr; &infin;)</b> even when server utilization is well below 100% (<i>&rho;</i> &lt; 1)!</li>
             <li><b>Buffer Overflow:</b> In finite queue buffers, Pareto traffic produces massive burst pile-ups that cause severe customer loss.</li>
@@ -686,15 +686,22 @@ def generate_theory_html(
     # Topic 6: Stochastic Stability Theory & Ergodicity
     # -------------------------------------------------------------------
     elif topic_index == 6:
-        if rho is None:
-            rho = 1.25
         if lam is None:
             lam = 2.50
         if mu is None:
             mu = 1.00
+        if m is None or m <= 0:
+            m = 1
+        a0 = lam / max(1e-6, mu)
+        a0_per_server = a0 / m
+        if rho is None:
+            if engine is not None and hasattr(engine, "get_metrics"):
+                rho = engine.get_metrics().get('rho', min(1.0, a0_per_server))
+            else:
+                rho = min(1.0, a0_per_server)
 
         eq1 = latex_eq_row(
-            r"\rho = \frac{\lambda}{m \cdot \mu} < 1",
+            r"\frac{A_0}{m} = \frac{\lambda}{m \cdot \mu} < 1 \quad \iff \quad A_0 < m",
             eq_num=1,
             zoom_factor=zoom_factor,
         )
@@ -704,7 +711,7 @@ def generate_theory_html(
             zoom_factor=zoom_factor,
         )
         eq3 = latex_eq_row(
-            r"P_{\mathrm{loss}} \geq 1 - \frac{m\mu}{\lambda} = 1 - \frac{1}{\rho}",
+            r"\pi_p \geq 1 - \frac{m\mu}{\lambda} = 1 - \frac{m}{A_0} = 1 - \frac{1}{A_0/m}",
             eq_num=3,
             zoom_factor=zoom_factor,
         )
@@ -714,7 +721,9 @@ def generate_theory_html(
         html = f"""{css}
         <h1>Stochastic Stability &amp; Ergodicity Theory</h1>
         <div class="meta-line">
-            <b>Current Regime:</b> <span style="color: {'#b91c1c' if rho >= 1.0 else '#15803d'}; font-weight: bold;">Offered Load &rho; = {rho:.2f}</span> &nbsp;|&nbsp;
+            <b>Offered Traffic:</b> <i>A</i><sub>0</sub> = {a0:.2f} Erl &nbsp;|&nbsp;
+            <b>Offered Load per Server:</b> <i>A</i><sub>0</sub> / <i>m</i> = {a0_per_server:.2f} &nbsp;|&nbsp;
+            <b>Carried Server Utilization:</b> <i>&rho;</i> = {rho:.2f} &nbsp;|&nbsp;
             <b>Arrival Rate:</b> &lambda; = {lam:.2f} cust/s &nbsp;|&nbsp;
             <b>Total Capacity:</b> <i>m&mu;</i> = {m} &times; {mu:.2f} = {m*mu:.2f} cust/s
         </div>
@@ -725,36 +734,41 @@ def generate_theory_html(
             In queueing facilities and networks, stability ensures that buffers do not permanently overflow and waiting times do not diverge without bound.
         </p>
 
-        <h2>II. Parameters Involved</h2>
+        <h2>II. Parameters Involved &amp; Distinction Between <i>A</i><sub>0</sub> / <i>m</i> and <i>&rho;</i></h2>
+        <p>
+            It is critical to distinguish between incoming traffic demand (offered load) and actual server busy time (utilization):
+        </p>
         <ul>
             <li><b><i>&lambda;</i> (Arrival Rate):</b> The aggregate rate of incoming customers arriving at the queue, in <b>cust/s</b>.</li>
             <li><b><i>&mu;</i> (Service Rate per Server):</b> The processing speed of a single server, in <b>cust/s</b>.</li>
             <li><b><i>m</i> (Number of Servers):</b> The number of identical servers working in parallel.</li>
             <li><b><i>m&mu;</i> (Total Service Capacity):</b> The maximum departure throughput when all <i>m</i> servers are actively busy, in <b>cust/s</b>.</li>
-            <li><b><i>&rho;</i> = <i>&lambda;</i> / (<i>m&mu;</i>) (Traffic Intensity / Offered Load):</b> The ratio of incoming work to total server capacity.</li>
+            <li><b><i>A</i><sub>0</sub> = <i>&lambda;</i> / <i>&mu;</i> (Offered Traffic):</b> Total incoming traffic volume offered to the system, in <b>Erlangs</b>.</li>
+            <li><b><i>A</i><sub>0</sub> / <i>m</i> = <i>&lambda;</i> / (<i>m&mu;</i>) (Offered Load per Server):</b> The ratio of incoming work to total server capacity. If <i>A</i><sub>0</sub> / <i>m</i> &ge; 1 (i.e. <i>A</i><sub>0</sub> &ge; <i>m</i>), incoming demand exceeds capacity and the system is in overload.</li>
+            <li><b><i>&rho;</i> = <i>A</i><sub>s</sub> / <i>m</i> = <i>&lambda;</i><sub>eff</sub> / (<i>m&mu;</i>) (Carried Server Utilization):</b> The actual fraction of time servers are busy serving admitted customers. Because physical servers cannot be more than 100% busy, <b>0 &le; <i>&rho;</i> &le; 1</b>.</li>
             <li><b><i>K</i> (Buffer Capacity):</b> The maximum number of customers that can wait in the queue.</li>
         </ul>
 
-        <h2>III. Mathematical Condition &amp; What Happens When &rho; &ge; 1</h2>
+        <h2>III. Mathematical Condition &amp; What Happens When <i>A</i><sub>0</sub> / <i>m</i> &ge; 1</h2>
         <p>For an open queue with infinite capacity, Loynes' stability theorem states that the system is stable if and only if:</p>
         {eq1}
-        <p>When <i>&rho;</i> &gt; 1 (traffic arrives faster than servers can process it), a positive queue drift occurs:</p>
+        <p>When <i>A</i><sub>0</sub> / <i>m</i> &gt; 1 (traffic arrives faster than servers can process it, <i>&lambda;</i> &gt; <i>m&mu;</i>), a positive queue drift occurs:</p>
         {eq2}
         <ul>
-            <li><b>Infinite Buffer (<i>K</i> = &infin;):</b> The queue backlog <i>Q</i>(<i>t</i>) grows linearly with time without bound, and waiting latency <i>W</i> diverges to infinity.</li>
-            <li><b>Finite Buffer (<i>K</i> &lt; &infin;):</b> The buffer stays permanently full, and incoming customers are continuously dropped, enforcing a strict minimum loss probability:</li>
+            <li><b>Infinite Buffer (<i>K</i> = &infin;):</b> The queue backlog <i>Q</i>(<i>t</i>) grows linearly with time without bound, and waiting latency <i>W</i> diverges to infinity. No steady state exists.</li>
+            <li><b>Finite Buffer (<i>K</i> &lt; &infin;):</b> The buffer stays permanently full, and incoming customers are continuously dropped, enforcing a strict minimum loss probability &pi;<sub>p</sub>:</li>
         </ul>
         {eq3}
         <ul>
-            <li><b>Critical Boundary (<i>&rho;</i> = 1):</b> Even when arrival rate exactly equals service capacity (<i>&lambda;</i> = <i>m&mu;</i>), random fluctuations make the queue unstable because idle server time can never be recovered to clear future bursts.</li>
+            <li><b>Critical Boundary (<i>A</i><sub>0</sub> / <i>m</i> = 1):</b> Even when arrival rate exactly equals service capacity (<i>&lambda;</i> = <i>m&mu;</i>), random fluctuations make an infinite-capacity queue unstable because idle server time can never be recovered to clear future bursts.</li>
         </ul>
 
         <h2>IV. Current System Diagnosis</h2>
         <div class="example-box">
             <p class="example-title">Live Analysis (&lambda; = {lam:.2f} cust/s, m&mu; = {m*mu:.2f} cust/s)</p>
             <p>
-                At the current configuration, offered load is <b>&rho; = {rho:.2f}</b>.
-                {"Because &rho; &ge; 1.0, the system is <b>overloaded</b>! In a finite buffer, at least <b>" + f"{min_loss_pct:.1f}%" + "</b> of all incoming customers will be dropped." if rho >= 1.0 else "Because &rho; &lt; 1.0, the system is currently <b>stable</b> and operating inside the ergodic steady-state region."}
+                At the current configuration, total offered traffic is <b><i>A</i><sub>0</sub> = {a0:.2f} Erlang</b> and offered load per server is <b><i>A</i><sub>0</sub> / <i>m</i> = {a0_per_server:.2f}</b> (while carried server utilization is <b>&rho; = {rho:.2f}</b>).
+                {"Because <b><i>A</i><sub>0</sub> / <i>m</i> &ge; 1.0</b> (<i>A</i><sub>0</sub> &ge; <i>m</i>), the system is <b>overloaded</b>! In a finite buffer, at least <b>" + f"{min_loss_pct:.1f}%" + "</b> of all incoming customers will be dropped." if a0_per_server >= 1.0 else "Because <b><i>A</i><sub>0</sub> / <i>m</i> &lt; 1.0</b> (<i>A</i><sub>0</sub> &lt; <i>m</i>), the system is currently <b>stable</b> and operating inside the ergodic steady-state region."}
             </p>
             <p>
                 <b>How to restore stability:</b> Increase the number of servers <i>m</i>, increase the service rate <i>&mu;</i>, or throttle the input arrival rate <i>&lambda;</i>.
@@ -834,46 +848,47 @@ def generate_theory_html(
         is_unstable = bool(theo and theo.get("unstable", False))
 
         # ---------------------------------------------------------------
-        # Topic 7: Average Server Utilization U & Traffic Intensity rho
+        # Topic 7: Average Server Utilization rho & Offered Traffic A_0
         # ---------------------------------------------------------------
         if topic_index == 7:
-            rho_offered = lam_val / max(1e-6, c_val * mu_val)
+            a0_val = lam_val / max(1e-6, mu_val)
+            rho_offered_per_server = a0_val / c_val
             rho_sim = m_stats.get("rho", 0.0)
             p_loss_theo = theo.get("p_loss", 0.0) if theo else 0.0
             if is_unstable:
                 rho_carried_theo = 1.0
-                u_theo_display = "1.0000 (Saturated)"
+                rho_theo_display = "1.0000 (Saturated)"
             elif not theo:
                 rho_carried_theo = 0.0
-                u_theo_display = "N/A"
+                rho_theo_display = "N/A"
             else:
-                rho_carried_theo = theo.get("rho", rho_offered * (1.0 - p_loss_theo))
-                u_theo_display = f"{rho_carried_theo:.4f}"
+                rho_carried_theo = theo.get("rho", rho_offered_per_server * (1.0 - p_loss_theo))
+                rho_theo_display = f"{rho_carried_theo:.4f}"
 
             eq1 = latex_eq_row(
-                r"\rho = \frac{\lambda}{m \cdot \mu}, \qquad U = \frac{\lambda_{\mathrm{eff}}}{m \cdot \mu} = \frac{\lambda\left(1 - P_{\mathrm{loss}}\right)}{m \cdot \mu}",
+                r"A_0 = \frac{\lambda}{\mu}, \qquad \frac{A_0}{m} = \frac{\lambda}{m \cdot \mu}, \qquad \rho = \frac{A_s}{m} = \frac{\lambda_{\mathrm{eff}}}{m \cdot \mu} = \frac{A_0\left(1 - \pi_p\right)}{m}",
                 eq_num=1,
                 zoom_factor=zoom_factor,
             )
             eq2 = latex_eq_row(
-                r"\bar{U}_{\mathrm{sim}} = \frac{1}{m \cdot T_{\mathrm{end}}} \sum_{k=1}^{m} \int_{0}^{T_{\mathrm{end}}} \mathrm{I}_{k}(t)\,\mathrm{d}t = \frac{\text{Total Busy Time Across All Servers}}{m \cdot T_{\mathrm{end}}}",
+                r"\bar{\rho}_{\mathrm{sim}} = \frac{1}{m \cdot T_{\mathrm{end}}} \sum_{k=1}^{m} \int_{0}^{T_{\mathrm{end}}} \mathrm{I}_{k}(t)\,\mathrm{d}t = \frac{\text{Total Busy Time Across All Servers}}{m \cdot T_{\mathrm{end}}}",
                 eq_num=2,
                 zoom_factor=zoom_factor,
             )
 
             html = f"""{css}
-            <h1>Metric Theory: Average Server Utilization (<i>U</i>) &amp; Traffic Intensity (<i>&rho;</i>)</h1>
+            <h1>Metric Theory: Average Server Utilization (<i>&rho;</i>) &amp; Offered Traffic (<i>A</i><sub>0</sub>)</h1>
             <div class="meta-line">
-                <b>Metric Symbol:</b> <i>U</i> (Carried Utilization) &nbsp;|&nbsp; <b>Traffic Intensity:</b> <i>&rho;</i> (Offered Load) &nbsp;|&nbsp; <b>Dimension:</b> Dimensionless Ratio [0, 1]
+                <b>Metric Symbol:</b> <i>&rho;</i> (Server Utilization) &nbsp;|&nbsp; <b>Offered Traffic:</b> <i>A</i><sub>0</sub> (Erlangs) &nbsp;|&nbsp; <b>Dimension:</b> Dimensionless Ratio [0, 1]
             </div>
 
             <h2>I. What is this Metric?</h2>
             <p>
-                In queueing systems, this metric measures how busy the servers are. It is crucial to distinguish between two closely related concepts:
+                In queueing systems and teletraffic engineering, this metric measures how busy the servers are. It is crucial to distinguish between two fundamental concepts:
             </p>
             <ul>
-                <li><b>Offered Load (Traffic Intensity <i>&rho;</i>):</b> The ratio between incoming traffic demand (<i>&lambda;</i>) and maximum server processing capacity (<i>m&mu;</i>). If traffic arrives faster than servers can process it, <i>&rho;</i> can be <b>&ge; 1.0</b> (system overload).</li>
-                <li><b>Average Server Utilization (<i>U</i>):</b> The actual fraction of time that servers are actively busy processing admitted customers. Because a server cannot be busy more than 100% of the time, <i>U</i> is strictly bounded between <b>0 and 1</b> (0 &le; <i>U</i> &le; 1).</li>
+                <li><b>Offered Traffic (<i>A</i><sub>0</sub>) &amp; Offered Load per Server (<i>A</i><sub>0</sub> / <i>m</i>):</b> <i>A</i><sub>0</sub> = <i>&lambda;</i> / <i>&mu;</i> is the total volume of traffic demand arriving at the system in Erlangs. Across <i>m</i> parallel servers, the normalized offered load per server is <i>A</i><sub>0</sub> / <i>m</i> = <i>&lambda;</i> / (<i>m&mu;</i>). If traffic arrives faster than servers can process it (<i>A</i><sub>0</sub> / <i>m</i> &ge; 1, i.e., <i>A</i><sub>0</sub> &ge; <i>m</i>), the system is in overload.</li>
+                <li><b>Average Server Utilization (<i>&rho;</i>):</b> The carried server utilization, defined as the actual fraction of time that servers are actively busy processing admitted customers: <i>&rho;</i> = <i>A</i><sub>s</sub> / <i>m</i> = <i>&lambda;</i><sub>eff</sub> / (<i>m&mu;</i>) = <i>A</i><sub>0</sub>(1 &minus; &pi;<sub>p</sub>) / <i>m</i>. Because a physical server cannot be busy more than 100% of the time, <i>&rho;</i> is strictly bounded in <b>[0, 1]</b> (0 &le; <i>&rho;</i> &le; 1).</li>
             </ul>
 
             <h2>II. Parameters Involved</h2>
@@ -882,14 +897,15 @@ def generate_theory_html(
                 <li><b><i>&mu;</i> (Service Rate per Server):</b> The processing speed of a single server, in <b>cust/s</b>.</li>
                 <li><b><i>m</i> (Number of Servers):</b> The number of parallel servers working concurrently.</li>
                 <li><b><i>m&mu;</i> (Total Capacity):</b> The maximum departure rate when all <i>m</i> servers are actively busy, in <b>cust/s</b>.</li>
-                <li><b><i>P</i><sub>loss</sub> (Loss Probability):</b> The fraction of customers dropped because the buffer was full upon arrival.</li>
-                <li><b><i>&lambda;</i><sub>eff</sub> = <i>&lambda;</i>(1 &minus; <i>P</i><sub>loss</sub>):</b> The effective arrival rate of customers admitted into the system.</li>
+                <li><b><i>A</i><sub>0</sub> = <i>&lambda;</i> / <i>&mu;</i> (Offered Traffic):</b> Total incoming traffic volume in Erlangs (with per-server offered load <i>A</i><sub>0</sub> / <i>m</i>).</li>
+                <li><b><i>&pi;</i><sub>p</sub> (Blocking / Loss Probability):</b> The fraction of customers dropped because the buffer was full upon arrival.</li>
+                <li><b><i>&lambda;</i><sub>eff</sub> = <i>&lambda;</i>(1 &minus; &pi;<sub>p</sub>):</b> The effective arrival rate of customers admitted into the system.</li>
                 <li><b><i>T</i><sub>end</sub> (Simulation Time):</b> The total elapsed simulation clock time, in <b>seconds</b>.</li>
                 <li><b>I<sub><i>k</i></sub>(<i>t</i>) &isin; &#123;0, 1&#125; (Server Busy Indicator):</b> Equal to 1 when server <i>k</i> is actively serving a customer at time <i>t</i>, and 0 when it is idle.</li>
             </ul>
 
             <h2>III. Mathematical Formulas &amp; Runtime Computation</h2>
-            <p>The analytical expressions for Offered Load (<i>&rho;</i>) and Carried Utilization (<i>U</i>) are:</p>
+            <p>The analytical expressions for Offered Traffic (<i>A</i><sub>0</sub>) and Server Utilization (<i>&rho;</i>) are:</p>
             {eq1}
             <p>
                 In the simulation engine, <b>Average Server Utilization</b> is computed continuously at runtime via time integration:
@@ -899,11 +915,11 @@ def generate_theory_html(
                 The simulator tracks the exact start and end times of every service event, computes the total active busy time accumulated across all <i>m</i> servers, and divides by the total available server-time (<i>m &times; T</i><sub>end</sub>).
             </p>
 
-            <h2>IV. Key Properties for Network Students</h2>
+            <h2>IV. Key Properties</h2>
             <ul>
-                <li><b>Infinite Buffer (<i>K</i> = &infin;) &amp; Stable (<i>&rho;</i> &lt; 1):</b> No customers are ever dropped (<i>P</i><sub>loss</sub> = 0), so carried utilization is identical to offered load: <b><i>U</i> = <i>&rho;</i></b>.</li>
-                <li><b>Finite Buffer (<i>K</i> &lt; &infin;) &amp; Overload (<i>&rho;</i> &ge; 1):</b> When <i>&rho;</i> &ge; 1, the buffer frequently fills up and drops excess customers. The admitted traffic rate cannot exceed total capacity (<i>&lambda;</i><sub>eff</sub> &le; <i>m&mu;</i>), so server utilization saturates near <b><i>U</i> &approx; 1.0 (100%)</b>, while offered load <i>&rho;</i> &gt; 1.0 reflects the overload.</li>
-                <li><b>Physical Interpretation:</b> If <i>U</i> = 0.80, servers are busy on average 80% of the time and idle 20% of the time.</li>
+                <li><b>Infinite Buffer (<i>K</i> = &infin;) &amp; Stable (<i>A</i><sub>0</sub> / <i>m</i> &lt; 1):</b> No customers are ever dropped (&pi;<sub>p</sub> = 0), so server utilization equals the offered load per server: <b><i>&rho;</i> = <i>A</i><sub>0</sub> / <i>m</i></b>.</li>
+                <li><b>Finite Buffer (<i>K</i> &lt; &infin;) &amp; Overload (<i>A</i><sub>0</sub> &ge; <i>m</i>):</b> When <i>A</i><sub>0</sub> &ge; <i>m</i>, the buffer frequently fills up and drops excess customers. The admitted traffic rate cannot exceed total capacity (<i>&lambda;</i><sub>eff</sub> &le; <i>m&mu;</i>), so server utilization saturates near <b><i>&rho;</i> &approx; 1.0 (100%)</b>, while offered load <i>A</i><sub>0</sub> / <i>m</i> reflects the high incoming demand.</li>
+                <li><b>Physical Interpretation:</b> If <i>&rho;</i> = 0.80, servers are busy on average 80% of the time and idle 20% of the time.</li>
             </ul>
 
             <h2>V. Current Simulator Values &amp; Comparison</h2>
@@ -911,19 +927,21 @@ def generate_theory_html(
                 <tr><th>Parameter / Metric</th><th>Formula / Expression</th><th>Live Simulator Value</th></tr>
                 <tr><td>Aggregate Arrival Rate (<i>&lambda;</i>)</td><td>Input parameter</td><td>{lam_val:.4f} cust/s</td></tr>
                 <tr><td>Total Service Capacity (<i>m&mu;</i>)</td><td>{c_val} &times; {mu_val:.4f}</td><td>{c_val * mu_val:.4f} cust/s</td></tr>
-                <tr><td>Theoretical Offered Load (<i>&rho;</i><sub>offered</sub>)</td><td><i>&lambda;</i> / (<i>m&mu;</i>)</td><td>{rho_offered:.4f}</td></tr>
-                <tr><td>Theoretical Carried Utilization (<i>U</i><sub>theo</sub>)</td><td><i>&lambda;</i>(1 &minus; <i>P</i><sub>loss</sub>) / (<i>m&mu;</i>)</td><td>{u_theo_display}</td></tr>
-                <tr class="bottom-rule"><td>Simulated Server Utilization (<i>U</i><sub>sim</sub>)</td><td>Continuous time integral (Eq. 2)</td><td>{rho_sim:.4f}</td></tr>
+                <tr><td>Offered Traffic (<i>A</i><sub>0</sub>)</td><td><i>&lambda;</i> / <i>&mu;</i></td><td>{a0_val:.4f} Erlang</td></tr>
+                <tr><td>Offered Load per Server (<i>A</i><sub>0</sub> / <i>m</i>)</td><td><i>&lambda;</i> / (<i>m&mu;</i>)</td><td>{rho_offered_per_server:.4f}</td></tr>
+                <tr><td>Theoretical Server Utilization (<i>&rho;</i><sub>theo</sub>)</td><td><i>A</i><sub>s</sub> / <i>m</i> = <i>&lambda;</i>(1 &minus; &pi;<sub>p</sub>) / (<i>m&mu;</i>)</td><td>{rho_theo_display}</td></tr>
+                <tr class="bottom-rule"><td>Simulated Server Utilization (<i>&rho;</i><sub>sim</sub>)</td><td>Continuous time integral (Eq. 2)</td><td>{rho_sim:.4f}</td></tr>
             </table>
             """
             return title, html
 
         # ---------------------------------------------------------------
-        # Topic 8: Average System Customers (L)
+        # Topic 8: Average Traffic in System (A)
         # ---------------------------------------------------------------
         elif topic_index == 8:
-            L_val = theo.get("L") if theo else None
-            L_sim = m_stats.get("L", 0.0)
+            title = "Metric Theory: Average Traffic in System A (k(t))"
+            L_val = theo.get("A", theo.get("L")) if theo else None
+            L_sim = m_stats.get("A", m_stats.get("L", 0.0))
             littles_L = m_stats.get("littles_L", 0.0)
 
             if is_unstable:
@@ -933,67 +951,72 @@ def generate_theory_html(
             elif math.isinf(L_val) or math.isnan(L_val):
                 L_theo_str = "&infin; (Infinite Variance)"
             else:
-                L_theo_str = f"{L_val:.4f} cust"
+                L_theo_str = f"{L_val:.4f} Erlang"
 
             eq1 = latex_eq_row(
-                r"L = \mathrm{E}[N(t)] = \sum_{n=0}^{\infty} n\, P_n = L_q + \frac{\lambda_{\mathrm{eff}}}{\mu}",
+                r"A = \mathrm{E}[k(t)] = \sum_{k=0}^{\infty} k\, P_k = A_c + A_s = \lambda_s \bar{\delta}",
                 eq_num=1,
                 zoom_factor=zoom_factor,
             )
             eq2 = latex_eq_row(
-                r"\bar{L}_{\mathrm{sim}} = \frac{1}{T_{\mathrm{end}}} \int_{0}^{T_{\mathrm{end}}} N(t)\,\mathrm{d}t = \frac{1}{T_{\mathrm{end}}} \sum_{n} n \cdot \Delta t_n",
+                r"\bar{A}_{\mathrm{sim}} = \frac{1}{T_{\mathrm{end}}} \int_{0}^{T_{\mathrm{end}}} k(t)\,\mathrm{d}t = \frac{1}{T_{\mathrm{end}}} \sum_{k} k \cdot \Delta t_k",
                 eq_num=2,
                 zoom_factor=zoom_factor,
             )
 
             html = f"""{css}
-            <h1>Metric Theory: Average Customers in System (<i>L</i>)</h1>
+            <h1>Metric Theory: Average Traffic in System (<i>A</i>)</h1>
             <div class="meta-line">
-                <b>Metric Symbol:</b> <i>L</i> = E[<i>N</i>(<i>t</i>)] &nbsp;|&nbsp; <b>Scope:</b> Queue Buffer + Active Servers
+                <b>Metric Symbol:</b> <i>A</i> = E[<i>k</i>(<i>t</i>)] &nbsp;|&nbsp; <b>Scope:</b> Queue Backlog (<i>A<sub>c</sub></i>) + Carried Traffic (<i>A<sub>s</sub></i>) &nbsp;|&nbsp; <b>Unit:</b> Erlang (E) / customers
             </div>
 
             <h2>I. What is this Metric?</h2>
             <p>
-                <b><i>L</i></b> is the long-run time-average total number of customers present anywhere inside the queueing system boundary—combining customers waiting in the buffer (<i>L<sub>q</sub></i>) and customers currently being served inside the servers (<i>L<sub>s</sub></i>).
+                In teletraffic systems, <b><i>A</i></b> is the average traffic intensity in the system, defined as the long-run time-average value of the customer occupancy stochastic process <b><i>k</i>(<i>t</i>)</b>.
+                By observing the system as a whole, the total traffic inside decomposes into the traffic waiting in queue (<i>A<sub>c</sub></i>) and the traffic currently being served by the servers (<i>A<sub>s</sub></i>):
+                <b><i>A</i> = <i>A<sub>c</sub></i> + <i>A<sub>s</sub></i></b>.
             </p>
 
             <h2>II. Parameters Involved</h2>
             <ul>
-                <li><b><i>N</i>(<i>t</i>):</b> The instantaneous count of customers in the system at time <i>t</i>.</li>
-                <li><b><i>P<sub>n</sub></i>:</b> The steady-state probability that exactly <i>n</i> customers are in the system.</li>
-                <li><b><i>L<sub>q</sub></i>:</b> Average number of customers waiting in the queue buffer.</li>
-                <li><b><i>L<sub>s</sub></i> = <i>m &middot; U</i>:</b> Average number of customers currently in service.</li>
-                <li><b>&Delta;<i>t<sub>n</sub></i>:</b> Cumulative duration of time that the system spent with exactly <i>n</i> customers.</li>
+                <li><b><i>k</i>(<i>t</i>) = <i>k</i>(0) + <i>a</i>(<i>t</i>) &minus; <i>d</i>(<i>t</i>):</b> The instantaneous traffic (number of customers) in the system at time <i>t</i>, where <i>a</i>(<i>t</i>) is cumulative arrivals and <i>d</i>(<i>t</i>) is cumulative departures.</li>
+                <li><b><i>P<sub>k</sub></i>:</b> The steady-state probability that exactly <i>k</i> customers are in the system.</li>
+                <li><b><i>A<sub>c</sub></i> = <i>&lambda;<sub>s</sub></i> &eta;&#772;:</b> Average number of customers waiting in the queue buffer.</li>
+                <li><b><i>A<sub>s</sub></i> = <i>&lambda;<sub>s</sub></i> &vartheta;&#772; = (1 &minus; &pi;<sub>p</sub>)<i>A</i><sub>0</sub>:</b> Average traffic served or carried by the servers (<i>A<sub>s</sub></i> = <i>m &middot; &rho;</i>).</li>
+                <li><b>&Delta;<i>t<sub>k</sub></i>:</b> Cumulative duration of time that the system spent in state <i>k</i>.</li>
             </ul>
 
             <h2>III. Mathematical Formulas &amp; Runtime Computation</h2>
-            <p>In steady state, the expected customer occupancy is the first moment of the state distribution:</p>
+            <p>In steady state, the expected system traffic is the first moment of the state distribution, satisfying Little's Law:</p>
             {eq1}
-            <p>The simulation engine tracks the exact time &Delta;<i>t<sub>n</sub></i> spent in each state <i>n</i> to compute the time-average:</p>
+            <p>The simulation engine tracks the exact time &Delta;<i>t<sub>k</sub></i> spent in each state <i>k</i> to compute the continuous time-average:</p>
             {eq2}
 
-            <h2>IV. Key Properties for Network Students</h2>
+            <h2>IV. Key Properties</h2>
             <ul>
-                <li><b>Little's Law Relation:</b> By Little's Law, <b><i>L</i> = <i>&lambda;</i><sub>eff</sub> &middot; <i>W</i></b>, connecting average customer count directly to average end-to-end delay <i>W</i>.</li>
-                <li><b>System Sizing:</b> If <i>L</i> is close to total system capacity (<i>m</i> + <i>K</i>), the facility is congested and buffer overflow probability increases sharply.</li>
+                <li><b>Little's Law Relation:</b> Across the entire queuing system, <b><i>A</i> = <i>&lambda;<sub>s</sub></i> &middot; &delta;&#772;</b>, connecting average traffic directly to average sojourn time &delta;&#772;.</li>
+                <li><b>Single-Server System ($M/M/1$):</b> When <i>m</i> = 1 and <i>K</i> = &infin;, <b><i>A</i> = <i>A<sub>s</sub></i> + <i>A<sub>c</sub></i> = <i>&rho;</i> + <i>&rho;</i><sup>2</sup>/(1 &minus; <i>&rho;</i>) = <i>&rho;</i> / (1 &minus; <i>&rho;</i>) = <i>A</i><sub>0</sub> / (1 &minus; <i>A</i><sub>0</sub>)</b>.</li>
+                <li><b>Multiple Servers ($M/M/m$):</b> With unlimited waiting space, <b><i>A</i> = <i>A</i><sub>0</sub> + &Ccedil;(<i>m</i>, <i>A</i><sub>0</sub>) &middot; <i>A</i><sub>0</sub> / (<i>m</i> &minus; <i>A</i><sub>0</sub>)</b>, where &Ccedil;(<i>m</i>, <i>A</i><sub>0</sub>) is Erlang's C formula.</li>
+                <li><b>Finite Waiting Space ($M/M/1/L$):</b> Under heavy overload, the traffic saturates at the physical capacity ceiling: <b>lim<sub><i>A</i><sub>0</sub> &rarr; &infin;</sub> <i>A</i> = <i>L</i> + 1</b>.</li>
             </ul>
 
             <h2>V. Current Simulator Values &amp; Comparison</h2>
             <table class="book-table">
                 <tr><th>Quantity</th><th>Formula / Method</th><th>Live Simulator Value</th></tr>
-                <tr><td>Theoretical Occupancy (<i>L</i><sub>theo</sub>)</td><td>Analytical model (Eq. 1)</td><td>{L_theo_str}</td></tr>
-                <tr><td>Simulated Time-Average (<i>L</i><sub>sim</sub>)</td><td>Time integral (Eq. 2)</td><td>{L_sim:.4f} cust</td></tr>
-                <tr class="bottom-rule"><td>Little's Law Product (<i>&lambda;</i><sub>eff</sub> &middot; <i>W</i><sub>sim</sub>)</td><td>Conservation check</td><td>{littles_L:.4f} cust</td></tr>
+                <tr><td>Theoretical Average Traffic (<i>A</i><sub>theo</sub>)</td><td>Analytical model (Eq. 1)</td><td>{L_theo_str}</td></tr>
+                <tr><td>Simulated Time-Average (<i>A</i><sub>sim</sub>)</td><td>Time integral (Eq. 2)</td><td>{L_sim:.4f} Erlang</td></tr>
+                <tr class="bottom-rule"><td>Little's Law Product (<i>&lambda;</i><sub>s</sub> &middot; &delta;&#772;<sub>sim</sub>)</td><td>Conservation check</td><td>{littles_L:.4f} Erlang</td></tr>
             </table>
             """
             return title, html
 
         # ---------------------------------------------------------------
-        # Topic 9: Average Queue Length (Lq)
+        # Topic 9: Average Queue Backlog (A_c)
         # ---------------------------------------------------------------
         elif topic_index == 9:
-            Lq_val = theo.get("Lq") if theo else None
-            Lq_sim = m_stats.get("Lq", 0.0)
+            title = "Metric Theory: Average Queue Backlog A_c"
+            Lq_val = theo.get("A_c", theo.get("Lq")) if theo else None
+            Lq_sim = m_stats.get("A_c", m_stats.get("Lq", 0.0))
             littles_Lq = m_stats.get("littles_Lq", 0.0)
 
             if is_unstable:
@@ -1006,65 +1029,67 @@ def generate_theory_html(
                 Lq_theo_str = f"{Lq_val:.4f} cust"
 
             eq1 = latex_eq_row(
-                r"L_q = \sum_{n=m}^{\infty} (n - m)\,P_n, \qquad L_q^{(M/G/1)} = \frac{\rho^2\left(1 + C_s^2\right)}{2(1 - \rho)}",
+                r"A_c = \sum_{k=m}^{\infty} (k - m)\,P_k = \mathcal{C}(m, A_0)\frac{A_0}{m - A_0}, \qquad A_c^{(M/G/1)} = \frac{\rho^2\left(1 + C_s^2\right)}{2(1 - \rho)}",
                 eq_num=1,
                 zoom_factor=zoom_factor,
             )
             eq2 = latex_eq_row(
-                r"\bar{L}_{q,\mathrm{sim}} = \frac{1}{T_{\mathrm{end}}} \int_{0}^{T_{\mathrm{end}}} \max\left(0,\, N(t) - m\right)\mathrm{d}t",
+                r"\bar{A}_{c,\mathrm{sim}} = \frac{1}{T_{\mathrm{end}}} \int_{0}^{T_{\mathrm{end}}} \max\left(0,\, k(t) - m\right)\mathrm{d}t",
                 eq_num=2,
                 zoom_factor=zoom_factor,
             )
 
             html = f"""{css}
-            <h1>Metric Theory: Average Queue Length (<i>L<sub>q</sub></i>)</h1>
+            <h1>Metric Theory: Average Queue Backlog (<i>A<sub>c</sub></i>)</h1>
             <div class="meta-line">
-                <b>Metric Symbol:</b> <i>L<sub>q</sub></i> = E[<i>Q</i>(<i>t</i>)] &nbsp;|&nbsp; <b>Scope:</b> Waiting Buffer Only (Excludes Servers)
+                <b>Metric Symbol:</b> <i>A<sub>c</sub></i> &nbsp;|&nbsp; <b>Scope:</b> Waiting Space Only (Excludes Servers) &nbsp;|&nbsp; <b>Unit:</b> Erlang (E) / customers
             </div>
 
             <h2>I. What is this Metric?</h2>
             <p>
-                <b><i>L<sub>q</sub></i></b> is the long-run time-average number of customers waiting in the queue buffer, strictly excluding customers that are currently being served by the servers.
-                In queueing systems, <i>L<sub>q</sub></i> determines how much buffer capacity is needed to absorb incoming bursts without dropping customers.
+                <b><i>A<sub>c</sub></i></b> is the average number of customers waiting in the queue buffer, strictly excluding customers that are actively being served by one of the <i>m</i> servers.
+                By Little's Law applied to the queue subsystem, <b><i>A<sub>c</sub></i> = <i>&lambda;<sub>s</sub></i> &middot; &eta;&#772;</b>, where &eta;&#772; is the average waiting time for a generic customer.
             </p>
 
             <h2>II. Parameters Involved</h2>
             <ul>
-                <li><b><i>Q</i>(<i>t</i>) = max(0, <i>N</i>(<i>t</i>) &minus; <i>m</i>):</b> The instantaneous queue backlog at time <i>t</i>.</li>
-                <li><b><i>K</i> (Buffer Capacity):</b> The maximum queue buffer size (number of customer slots).</li>
-                <li><b><i>W<sub>q</sub></i> (Average Queue Wait Time):</b> The average time spent waiting in line (in seconds).</li>
-                <li><b><i>&lambda;</i><sub>eff</sub> (Admitted Rate):</b> The rate of admitted customers (in cust/s).</li>
+                <li><b><i>k<sub>q</sub></i>(<i>t</i>) = max(0, <i>k</i>(<i>t</i>) &minus; <i>m</i>):</b> The instantaneous queue backlog at time <i>t</i>.</li>
+                <li><b><i>K</i> (or <i>L</i>):</b> The maximum queue buffer size (number of waiting slots).</li>
+                <li><b>&eta;&#772; (Average Waiting Time):</b> The average time spent waiting in queue for a generic customer, in <b>seconds</b>.</li>
+                <li><b><i>&lambda;<sub>s</sub></i> = (1 &minus; &pi;<sub>p</sub>)<i>&lambda;</i>:</b> Rate of customers entering the system (admitted throughput).</li>
+                <li><b>&Ccedil;(<i>m</i>, <i>A</i><sub>0</sub>):</b> Erlang's C formula, representing the congestion probability &pi;<sub>r</sub> that an arrival finds all <i>m</i> servers busy.</li>
             </ul>
 
             <h2>III. Mathematical Formulas &amp; Runtime Computation</h2>
-            <p>From the state probabilities <i>P<sub>n</sub></i> (and via the Pollaczek-Khinchine formula for <i>M</i>/<i>G</i>/1 queues):</p>
+            <p>From the state probabilities <i>P<sub>k</sub></i> (and via Erlang-C for <i>M</i>/<i>M</i>/<i>m</i> or Pollaczek-Khinchine for <i>M</i>/<i>G</i>/1 queues):</p>
             {eq1}
-            <p>The simulator tracks the continuous backlog <i>Q</i>(<i>t</i>) over time:</p>
+            <p>The simulator tracks the continuous backlog <i>k<sub>q</sub></i>(<i>t</i>) over time:</p>
             {eq2}
 
-            <h2>IV. Key Properties for Network Students</h2>
+            <h2>IV. Key Propertiess</h2>
             <ul>
-                <li><b>Non-linear Growth:</b> As server utilization approaches 100% (<i>&rho;</i> &rarr; 1), queue length explodes non-linearly with factor <i>&rho;</i><sup>2</sup> / (1 &minus; <i>&rho;</i>).</li>
-                <li><b>Little's Law for Queues:</b> Just like total system occupancy, <b><i>L<sub>q</sub></i> = <i>&lambda;</i><sub>eff</sub> &middot; <i>W<sub>q</sub></i></b>.</li>
+                <li><b>Non-linear Queue Explosion:</b> In single-server queues ($M/M/1$), <b><i>A<sub>c</sub></i> = <i>&rho;</i><sup>2</sup> / (1 &minus; <i>&rho;</i>) = <i>A</i><sub>0</sub><sup>2</sup> / (1 &minus; <i>A</i><sub>0</sub>)</b>. As server utilization approaches 100%, queue backlog explodes to infinity.</li>
+                <li><b>Little's Law for Queues:</b> Just like total system traffic, <b><i>A<sub>c</sub></i> = <i>&lambda;<sub>s</sub></i> &middot; &eta;&#772;</b> holds universally regardless of distributions or scheduling disciplines.</li>
             </ul>
 
             <h2>V. Current Simulator Values &amp; Comparison</h2>
             <table class="book-table">
                 <tr><th>Quantity</th><th>Formula / Method</th><th>Live Simulator Value</th></tr>
-                <tr><td>Theoretical Queue Length (<i>L</i><sub><i>q</i>,theo</sub>)</td><td>Analytical model (Eq. 1)</td><td>{Lq_theo_str}</td></tr>
-                <tr><td>Simulated Queue Length (<i>L</i><sub><i>q</i>,sim</sub>)</td><td>Time integral (Eq. 2)</td><td>{Lq_sim:.4f} cust</td></tr>
-                <tr class="bottom-rule"><td>Little's Law Product (<i>&lambda;</i><sub>eff</sub> &middot; <i>W</i><sub><i>q</i>,sim</sub>)</td><td>Conservation check</td><td>{littles_Lq:.4f} cust</td></tr>
+                <tr><td>Theoretical Queue Backlog (<i>A</i><sub><i>c</i>,theo</sub>)</td><td>Analytical model (Eq. 1)</td><td>{Lq_theo_str}</td></tr>
+                <tr><td>Simulated Queue Backlog (<i>A</i><sub><i>c</i>,sim</sub>)</td><td>Time integral (Eq. 2)</td><td>{Lq_sim:.4f} cust</td></tr>
+                <tr class="bottom-rule"><td>Little's Law Product (<i>&lambda;</i><sub>s</sub> &middot; &eta;&#772;<sub>sim</sub>)</td><td>Conservation check</td><td>{littles_Lq:.4f} cust</td></tr>
             </table>
             """
             return title, html
 
         # ---------------------------------------------------------------
-        # Topic 10: Average System Time (W)
+        # Topic 10: Average Sojourn Time (\bar{\delta})
         # ---------------------------------------------------------------
         elif topic_index == 10:
-            W_val = theo.get("W") if theo else None
-            W_sim = m_stats.get("W", 0.0)
-            Wq_sim = m_stats.get("Wq", 0.0)
+            title = "Metric Theory: Average Sojourn Time δ̄"
+            W_val = theo.get("delta_bar", theo.get("W")) if theo else None
+            W_sim = m_stats.get("delta_bar", m_stats.get("W", 0.0))
+            Wq_sim = m_stats.get("eta_bar", m_stats.get("Wq", 0.0))
             es_val = 1.0 / max(1e-6, mu_val)
 
             if is_unstable:
@@ -1077,64 +1102,69 @@ def generate_theory_html(
                 W_theo_str = f"{W_val:.4f} s"
 
             eq1 = latex_eq_row(
-                r"W = \mathrm{E}[T_{\mathrm{sojourn}}] = W_q + \mathrm{E}[S] = W_q + \frac{1}{\mu}",
+                r"\bar{\delta} = \bar{\eta} + \bar{\vartheta} = \bar{\eta} + \frac{1}{\mu} = \frac{A}{\lambda_s}",
                 eq_num=1,
                 zoom_factor=zoom_factor,
             )
             eq2 = latex_eq_row(
-                r"\bar{W}_{\mathrm{sim}} = \frac{1}{N_{\mathrm{served}}} \sum_{i=1}^{N_{\mathrm{served}}} \left(t_{\mathrm{dep},i} - t_{\mathrm{arr},i}\right)",
+                r"\bar{\delta}_{\mathrm{sim}} = \frac{1}{d(T_{\mathrm{end}})} \sum_{i=1}^{d(T_{\mathrm{end}})} \delta_i = \frac{1}{d(T_{\mathrm{end}})} \sum_{i=1}^{d(T_{\mathrm{end}})} \left(t_{\mathrm{dep},i} - t_{\mathrm{arr},i}\right)",
                 eq_num=2,
                 zoom_factor=zoom_factor,
             )
 
             html = f"""{css}
-            <h1>Metric Theory: Average System Sojourn Time (<i>W</i>)</h1>
+            <h1>Metric Theory: Average Sojourn Time (&delta;&#772;)</h1>
             <div class="meta-line">
-                <b>Metric Symbol:</b> <i>W</i> &nbsp;|&nbsp; <b>Meaning:</b> Total End-to-End Latency (Queue Wait + Service Time)
+                <b>Metric Symbol:</b> &delta;&#772; &nbsp;|&nbsp; <b>Decomposition:</b> &delta;&#772; = &eta;&#772; + &vartheta;&#772; &nbsp;|&nbsp; <b>Unit:</b> seconds
             </div>
 
             <h2>I. What is this Metric?</h2>
             <p>
-                <b><i>W</i></b> (also known as <i>sojourn time</i>, <i>system response time</i>, or <i>end-to-end latency</i>) is the average total time that an admitted customer spends in the system from the moment it arrives until its service is fully completed.
+                <b>&delta;&#772;</b> (average sojourn time) is the average total time that an admitted customer spends in the queuing system, from the instant it enters the system until its service is completed and it leaves the system.
+                As established in traffic theory, average sojourn time is the sum of average waiting time in queue (&eta;&#772;) and average service time (&vartheta;&#772; = 1/&mu;):
+                <b>&delta;&#772; = &eta;&#772; + &vartheta;&#772;</b>.
             </p>
 
             <h2>II. Parameters Involved</h2>
             <ul>
-                <li><b><i>t</i><sub>arr,<i>i</i></sub>:</b> Timestamp when customer <i>i</i> arrived at the system.</li>
-                <li><b><i>t</i><sub>dep,<i>i</i></sub>:</b> Timestamp when customer <i>i</i> completed service and departed.</li>
-                <li><b><i>W<sub>q</sub></i>:</b> Average time spent waiting in the queue buffer, in <b>seconds</b>.</li>
-                <li><b>E[<i>S</i>] = 1 / <i>&mu;</i>:</b> Average customer service time in the server, in <b>seconds</b>.</li>
-                <li><b><i>N</i><sub>served</sub>:</b> Total number of customers that have completed service.</li>
+                <li><b>&delta;<sub><i>i</i></sub> = <i>t</i><sub>dep,<i>i</i></sub> &minus; <i>t</i><sub>arr,<i>i</i></sub>:</b> The sojourn time of the <i>i</i>-th completed customer.</li>
+                <li><b>&eta;&#772;:</b> Average waiting time spent in the queue buffer, in <b>seconds</b>.</li>
+                <li><b>&vartheta;&#772; = 1 / <i>&mu;</i>:</b> Average service time in the server, in <b>seconds</b>.</li>
+                <li><b><i>d</i>(<i>T</i><sub>end</sub>):</b> Total number of customer departures up to time <i>T</i><sub>end</sub>.</li>
+                <li><b><i>&lambda;<sub>s</sub></i> = (1 &minus; &pi;<sub>p</sub>)<i>&lambda;</i>:</b> Average rate of customers admitted into the system.</li>
             </ul>
 
             <h2>III. Mathematical Formulas &amp; Runtime Computation</h2>
-            <p>By linearity of expectation, total delay is the sum of queueing wait time and transmission time:</p>
+            <p>By linearity of expectation and Little's Law, average sojourn time satisfies:</p>
             {eq1}
-            <p>In the simulator, <i>W</i> is computed as the sample average over all completed customers:</p>
+            <p>In the simulator, &delta;&#772; is computed as the exact sample average over all departed customers:</p>
             {eq2}
 
-            <h2>IV. Key Properties for Network Students</h2>
+            <h2>IV. Key Properties</h2>
             <ul>
-                <li><b>Minimum Delay Floor:</b> Even if the queue is completely empty (<i>W<sub>q</sub></i> = 0), a customer can never leave faster than its own service time E[<i>S</i>] = 1/<i>&mu;</i>.</li>
-                <li><b>Quality of Service (QoS):</b> In priority queues, high-priority customers experience much lower <i>W</i>, while low-priority customers absorb longer delays.</li>
+                <li><b>Decomposition Identity:</b> Multiplying &delta;&#772; = &eta;&#772; + &vartheta;&#772; by <i>&lambda;<sub>s</sub></i> yields the traffic relation: <b><i>A</i> = <i>A<sub>c</sub></i> + <i>A<sub>s</sub></i></b>.</li>
+                <li><b>Single Server ($M/M/1$):</b> <b>&delta;&#772; = &vartheta;&#772; / (1 &minus; <i>&rho;</i>) = 1 / (&mu; &minus; &lambda;)</b>.</li>
+                <li><b>Multiple Servers ($M/M/m$):</b> <b>&delta;&#772; = &vartheta;&#772; + &Ccedil;(<i>m</i>, <i>A</i><sub>0</sub>) &middot; &vartheta;&#772; / (<i>m</i> &minus; <i>A</i><sub>0</sub>)</b>.</li>
+                <li><b>Finite Waiting Space ($M/M/1/L$):</b> <b>&delta;&#772; = <i>A</i> / [(1 &minus; &pi;<sub>p</sub>)&lambda;] = <i>A</i> / <i>&lambda;<sub>s</sub></i></b>.</li>
             </ul>
 
             <h2>V. Current Simulator Values &amp; Comparison</h2>
             <table class="book-table">
                 <tr><th>Quantity</th><th>Formula / Method</th><th>Live Simulator Value</th></tr>
-                <tr><td>Theoretical Sojourn Time (<i>W</i><sub>theo</sub>)</td><td>Analytical model (Eq. 1)</td><td>{W_theo_str}</td></tr>
-                <tr><td>Simulated Sojourn Time (<i>W</i><sub>sim</sub>)</td><td>Sample average (Eq. 2)</td><td>{W_sim:.4f} s</td></tr>
-                <tr class="bottom-rule"><td>Decomposition Check (<i>W</i><sub><i>q</i>,sim</sub> + 1/<i>&mu;</i>)</td><td>{Wq_sim:.4f} s + {es_val:.4f} s</td><td>{Wq_sim + es_val:.4f} s</td></tr>
+                <tr><td>Theoretical Sojourn Time (&delta;&#772;<sub>theo</sub>)</td><td>Analytical model (Eq. 1)</td><td>{W_theo_str}</td></tr>
+                <tr><td>Simulated Sojourn Time (&delta;&#772;<sub>sim</sub>)</td><td>Sample average (Eq. 2)</td><td>{W_sim:.4f} s</td></tr>
+                <tr class="bottom-rule"><td>Decomposition Check (&eta;&#772;<sub>sim</sub> + &vartheta;&#772;)</td><td>{Wq_sim:.4f} s + {es_val:.4f} s</td><td>{Wq_sim + es_val:.4f} s</td></tr>
             </table>
             """
             return title, html
 
         # ---------------------------------------------------------------
-        # Topic 11: Average Waiting Time in Queue (Wq)
+        # Topic 11: Average Waiting Time in Queue (\bar{\eta} and \bar{\varepsilon})
         # ---------------------------------------------------------------
         elif topic_index == 11:
-            Wq_val = theo.get("Wq") if theo else None
-            Wq_sim = m_stats.get("Wq", 0.0)
+            title = "Metric Theory: Average Waiting Time η̄ (and ε̄)"
+            Wq_val = theo.get("eta_bar", theo.get("Wq")) if theo else None
+            Wq_sim = m_stats.get("eta_bar", m_stats.get("Wq", 0.0))
 
             if is_unstable:
                 Wq_theo_str = "&infin; (Unstable)"
@@ -1150,260 +1180,277 @@ def generate_theory_html(
                 disc_str = f"{abs(Wq_sim - Wq_val):.4f} s"
 
             eq1 = latex_eq_row(
-                r"W_q^{(M/G/1)} = \frac{\lambda\,\mathrm{E}[S^2]}{2(1 - \rho)} = \frac{\rho}{\mu(1 - \rho)} \cdot \left(\frac{1 + C_s^2}{2}\right)",
+                r"\bar{\eta} = \frac{A_c}{\lambda_s} = \mathcal{C}(m, A_0)\frac{\bar{\vartheta}}{m - A_0}, \qquad \bar{\varepsilon} = \frac{\bar{\eta}}{\mathcal{C}(m, A_0)} = \frac{\bar{\vartheta}}{m - A_0}",
                 eq_num=1,
                 zoom_factor=zoom_factor,
             )
             eq2 = latex_eq_row(
-                r"\bar{W}_{q,\mathrm{sim}} = \frac{1}{N_{\mathrm{served}}} \sum_{i=1}^{N_{\mathrm{served}}} \left(t_{\mathrm{start},i} - t_{\mathrm{arr},i}\right)",
+                r"\bar{\eta}_{\mathrm{sim}} = \frac{1}{d(T_{\mathrm{end}})} \sum_{i=1}^{d(T_{\mathrm{end}})} \left(t_{\mathrm{start},i} - t_{\mathrm{arr},i}\right)",
                 eq_num=2,
                 zoom_factor=zoom_factor,
             )
 
             html = f"""{css}
-            <h1>Metric Theory: Average Waiting Time in Queue (<i>W<sub>q</sub></i>)</h1>
+            <h1>Metric Theory: Average Waiting Time (&eta;&#772; and &epsilon;&#772;)</h1>
             <div class="meta-line">
-                <b>Metric Symbol:</b> <i>W<sub>q</sub></i> &nbsp;|&nbsp; <b>Meaning:</b> Pure Buffering Delay Before Service
+                <b>Metric Symbols:</b> &eta;&#772; (Generic Customer) &nbsp;|&nbsp; &epsilon;&#772; (Customer that Joins Queue) &nbsp;|&nbsp; <b>Unit:</b> seconds
             </div>
 
             <h2>I. What is this Metric?</h2>
             <p>
-                <b><i>W<sub>q</sub></i></b> measures the average time an admitted customer spends waiting in line in the buffer before a server becomes available to serve it.
-                Unlike total response time <i>W</i>, <i>W<sub>q</sub></i> isolates the delay caused purely by buffer contention, congestion, and arrival bursts.
+                <b>&eta;&#772;</b> is the average time spent in queue (waiting time) by a generic customer entering the system, including customers that find an idle server upon arrival and experience zero wait (&eta; = 0).
+                In multiserver systems ($M/M/m$), traffic theory also defines <b>&epsilon;&#772;</b> as the average waiting time for a customer that actually joins the queue:
+                <b>&epsilon;&#772; = &eta;&#772; / &Ccedil;(<i>m</i>, <i>A</i><sub>0</sub>) = &vartheta;&#772; / (<i>m</i> &minus; <i>A</i><sub>0</sub>)</b>.
             </p>
 
             <h2>II. Parameters Involved</h2>
             <ul>
-                <li><b><i>t</i><sub>arr,<i>i</i></sub>:</b> Timestamp when customer <i>i</i> entered the buffer.</li>
-                <li><b><i>t</i><sub>start,<i>i</i></sub>:</b> Timestamp when customer <i>i</i> reached the head of the line and began service.</li>
-                <li><b><i>&rho;</i>:</b> Server utilization.</li>
-                <li><b><i>C<sub>s</sub></i><sup>2</sup>:</b> Squared coefficient of variation of the service time distribution.</li>
+                <li><b>&eta;<sub><i>i</i></sub> = <i>t</i><sub>start,<i>i</i></sub> &minus; <i>t</i><sub>arr,<i>i</i></sub>:</b> Time customer <i>i</i> waited in line before a server began its service.</li>
+                <li><b>&Ccedil;(<i>m</i>, <i>A</i><sub>0</sub>):</b> Erlang's C formula &pi;<sub>r</sub>, the probability that all <i>m</i> servers are busy and a customer must wait.</li>
+                <li><b>&epsilon;&#772;:</b> Conditional average waiting time for customers that actually had to wait in queue.</li>
+                <li><b><i>A<sub>c</sub></i>:</b> Average queue backlog (customers in buffer).</li>
+                <li><b><i>&lambda;<sub>s</sub></i>:</b> Admitted arrival rate entering the system.</li>
+                <li><b><i>C<sub>s</sub></i><sup>2</sup>:</b> Squared coefficient of variation of service time (in $M/G/1$).</li>
             </ul>
 
             <h2>III. Mathematical Formulas &amp; Runtime Computation</h2>
-            <p>For an <i>M</i>/<i>G</i>/1 queue, the Pollaczek-Khinchine formula determines average wait time:</p>
+            <p>In steady state, the analytical expressions for &eta;&#772; and &epsilon;&#772; are:</p>
             {eq1}
-            <p>Across all completed customers, the simulator calculates the empirical mean:</p>
+            <p>Across all departed customers, the simulator calculates the empirical waiting time mean:</p>
             {eq2}
 
-            <h2>IV. Key Properties for Network Students</h2>
+            <h2>IV. Key Properties</h2>
             <ul>
-                <li><b>Zero Wait for Idle Servers:</b> If an incoming customer arrives when at least one server is idle, it begins service immediately, so its waiting time is 0 (<i>t</i><sub>start,<i>i</i></sub> = <i>t</i><sub>arr,<i>i</i></sub>).</li>
-                <li><b>Variance Multiplier:</b> If customer service times are variable (<i>C<sub>s</sub></i><sup>2</sup> &gt; 1), queue wait time increases proportionally by (1 + <i>C<sub>s</sub></i><sup>2</sup>) / 2.</li>
+                <li><b>Single-Server System ($M/M/1$):</b> Here &Ccedil;(1, <i>A</i><sub>0</sub>) = <i>&rho;</i>, so <b>&eta;&#772; = &vartheta;&#772; &middot; <i>&rho;</i> / (1 &minus; <i>&rho;</i>) = <i>&rho;</i> / [&mu;(1 &minus; <i>&rho;</i>)]</b> and <b>&epsilon;&#772; = &vartheta;&#772; / (1 &minus; <i>&rho;</i>)</b>.</li>
+                <li><b>Pollaczek-Khinchine Formula ($M/G/1$):</b> With general service variance, <b>&eta;&#772; = &vartheta;&#772; &middot; [<i>&rho;</i> / (1 &minus; <i>&rho;</i>)] &middot; [(1 + <i>C<sub>s</sub></i><sup>2</sup>) / 2]</b>.</li>
+                <li><b>Invariance:</b> Average waiting times are valid for any work-conserving queueing discipline (FIFO, LIFO, Random Choice).</li>
             </ul>
 
             <h2>V. Current Simulator Values &amp; Comparison</h2>
             <table class="book-table">
                 <tr><th>Quantity</th><th>Formula / Method</th><th>Live Simulator Value</th></tr>
-                <tr><td>Theoretical Mean Wait (<i>W</i><sub><i>q</i>,theo</sub>)</td><td>Analytical model (Eq. 1)</td><td>{Wq_theo_str}</td></tr>
-                <tr><td>Simulated Mean Wait (<i>W</i><sub><i>q</i>,sim</sub>)</td><td>Sample average (Eq. 2)</td><td>{Wq_sim:.4f} s</td></tr>
-                <tr class="bottom-rule"><td>Absolute Discrepancy |<i>W</i><sub><i>q</i>,sim</sub> &minus; <i>W</i><sub><i>q</i>,theo</sub>|</td><td>Empirical convergence error</td><td>{disc_str}</td></tr>
+                <tr><td>Theoretical Mean Wait (&eta;&#772;<sub>theo</sub>)</td><td>Analytical model (Eq. 1)</td><td>{Wq_theo_str}</td></tr>
+                <tr><td>Simulated Mean Wait (&eta;&#772;<sub>sim</sub>)</td><td>Sample average (Eq. 2)</td><td>{Wq_sim:.4f} s</td></tr>
+                <tr class="bottom-rule"><td>Absolute Discrepancy |&eta;&#772;<sub>sim</sub> &minus; &eta;&#772;<sub>theo</sub>|</td><td>Empirical convergence error</td><td>{disc_str}</td></tr>
             </table>
             """
             return title, html
 
         # ---------------------------------------------------------------
-        # Topic 12: Blocking / Customer Loss Probability (P_loss)
+        # Topic 12: Blocking Probability (\pi_p) & Erlang-B Formula
         # ---------------------------------------------------------------
         elif topic_index == 12:
-            p_loss_theo = theo.get("p_loss", 0.0) if theo else 0.0
+            title = "Metric Theory: Blocking Probability π_p"
+            p_loss_theo = theo.get("pi_p", theo.get("p_loss", 0.0)) if theo else 0.0
             p_loss_theo_str = f"{p_loss_theo*100.0:.2f}%" if theo else "N/A"
-            p_loss_sim = m_stats.get("p_loss", 0.0)
+            p_loss_sim = m_stats.get("pi_p", m_stats.get("p_loss", 0.0))
             arr_tot = m_stats.get("arrived", 0)
             drop_tot = m_stats.get("dropped", 0)
 
             eq1 = latex_eq_row(
-                r"P_{\mathrm{loss}} = P_{m+K} = \frac{p_0\, a^m\, \rho^K}{m!}, \qquad \lambda_{\mathrm{eff}} = \lambda\left(1 - P_{\mathrm{loss}}\right)",
+                r"\mathcal{B}(m, A_0) = \frac{A_0^m / m!}{\sum_{k=0}^{m} A_0^k / k!}, \qquad \pi_p = P_{m+K}, \qquad \lambda_s = (1 - \pi_p)\lambda",
                 eq_num=1,
                 zoom_factor=zoom_factor,
             )
             eq2 = latex_eq_row(
-                r"B(m, A) = \frac{A^m / m!}{\sum_{n=0}^{m} A^n / n!}, \qquad \bar{P}_{\mathrm{loss, sim}} = \frac{N_{\mathrm{dropped}}}{N_{\mathrm{arrived}}}",
+                r"\bar{\pi}_{p,\mathrm{sim}} = \frac{a_p(T_{\mathrm{end}})}{a(T_{\mathrm{end}})} = \frac{N_{\mathrm{dropped}}}{N_{\mathrm{arrived}}}, \qquad A_0 = A_s + A_p = (1 - \pi_p)A_0 + \pi_p A_0",
                 eq_num=2,
                 zoom_factor=zoom_factor,
             )
 
             html = f"""{css}
-            <h1>Metric Theory: Blocking &amp; Customer Loss Probability (<i>P</i><sub>loss</sub>)</h1>
+            <h1>Metric Theory: Blocking Probability (&pi;<sub>p</sub>) &amp; Erlang's B Formula</h1>
             <div class="meta-line">
-                <b>Metric Symbol:</b> <i>P</i><sub>loss</sub> &nbsp;|&nbsp; <b>Buffer Capacity:</b> <i>K</i> = {'&infin;' if math.isinf(K_val) else int(K_val)} slots
+                <b>Metric Symbol:</b> &pi;<sub>p</sub> &nbsp;|&nbsp; <b>Traffic Breakdown:</b> <i>A</i><sub>0</sub> = <i>A<sub>s</sub></i> + <i>A<sub>p</sub></i> &nbsp;|&nbsp; <b>Buffer Capacity:</b> <i>K</i> = {'&infin;' if math.isinf(K_val) else int(K_val)} slots
             </div>
 
             <h2>I. What is this Metric?</h2>
             <p>
-                In a finite-capacity queue (<i>K</i> &lt; &infin;), any customer arriving when all <i>m</i> servers are busy and all <i>K</i> buffer slots are occupied finds the system full and is dropped (**Drop-Tail** policy).
-                <b><i>P</i><sub>loss</sub></b> is the long-run fraction of arriving customers that are rejected.
+                In a real queuing system with finite waiting space (<i>K</i> &lt; &infin;), any customer that finds all servers busy and the buffer full cannot enter the system and is rejected (**loss system**).
+                <b>&pi;<sub>p</sub></b> is the **blocking probability** (or loss probability), defined as the probability that an arriving customer is rejected.
+                Lost customers generate rejected traffic <b><i>A<sub>p</sub></i> = &pi;<sub>p</sub> <i>A</i><sub>0</sub></b>, leaving carried traffic <b><i>A<sub>s</sub></i> = (1 &minus; &pi;<sub>p</sub>)<i>A</i><sub>0</sub></b>.
             </p>
 
             <h2>II. Parameters Involved</h2>
             <ul>
-                <li><b><i>N</i><sub>arrived</sub>:</b> Total number of customers that attempted to enter the queue.</li>
-                <li><b><i>N</i><sub>dropped</sub>:</b> Total number of customers rejected due to buffer overflow.</li>
-                <li><b><i>K</i>:</b> Maximum buffer capacity.</li>
-                <li><b><i>m</i>:</b> Number of parallel servers.</li>
-                <li><b><i>&lambda;</i><sub>eff</sub> = <i>&lambda;</i>(1 &minus; <i>P</i><sub>loss</sub>):</b> Admitted throughput rate.</li>
+                <li><b><i>a</i>(<i>t</i>):</b> Cumulative total number of customer arrivals up to time <i>t</i>.</li>
+                <li><b><i>a<sub>p</sub></i>(<i>t</i>):</b> Cumulative total number of customer arrivals rejected up to time <i>t</i>.</li>
+                <li><b><i>A</i><sub>0</sub> = &lambda;&vartheta;&#772;:</b> Offered traffic in Erlangs.</li>
+                <li><b><i>A<sub>s</sub></i> = &lambda;<sub>s</sub>&vartheta;&#772; = (1 &minus; &pi;<sub>p</sub>)<i>A</i><sub>0</sub>:</b> Served or carried traffic in Erlangs.</li>
+                <li><b><i>A<sub>p</sub></i> = &lambda;<sub>p</sub>&vartheta;&#772; = &pi;<sub>p</sub> <i>A</i><sub>0</sub>:</b> Rejected or lost traffic in Erlangs.</li>
+                <li><b><i>&lambda;<sub>s</sub></i> = (1 &minus; &pi;<sub>p</sub>)<i>&lambda;</i>:</b> Admitted arrival rate (throughput).</li>
             </ul>
 
             <h2>III. Mathematical Formulas &amp; Runtime Computation</h2>
-            <p>For an <i>M</i>/<i>M</i>/<i>m</i>/<i>m</i>+<i>K</i> Markov chain, customer loss equals the stationary probability of the full state <i>n</i> = <i>m</i> + <i>K</i>:</p>
+            <p>For systems without waiting space ($M/M/m/0$), blocking is given by <b>Erlang's B formula</b>; for finite queues, it is the full-state probability:</p>
             {eq1}
-            <p>In a bufferless system (<i>K</i> = 0), this simplifies to the famous <b>Erlang-B formula</b> alongside the empirical estimator:</p>
+            <p>The simulator measures empirical blocking from arrival and drop event counters:</p>
             {eq2}
 
-            <h2>IV. Key Properties for Network Students</h2>
+            <h2>IV. Key Properties</h2>
             <ul>
-                <li><b>Throughput Degradation:</b> Customers that are dropped never enter the buffer, so carried throughput is always <i>&lambda;</i><sub>eff</sub> = <i>&lambda;</i>(1 &minus; <i>P</i><sub>loss</sub>).</li>
-                <li><b>Buffer Sizing Tradeoff:</b> Increasing buffer size <i>K</i> reduces customer loss, but increases the maximum possible queueing delay customers can experience (bufferbloat).</li>
+                <li><b>Traffic Decomposition:</b> Offered traffic is always conserved: <b><i>A</i><sub>0</sub> = <i>A<sub>s</sub></i> + <i>A<sub>p</sub></i></b>.</li>
+                <li><b>Insensitivity of Erlang-B:</b> Erlang's B formula does not depend on the service time distribution, holding for general $M/G/m/0$ queues.</li>
+                <li><b>Single Server with Limited Queue ($M/M/1/L$):</b> <b>&pi;<sub>p</sub> = <i>P</i><sub><i>L</i>+1</sub> = [(1 &minus; <i>A</i><sub>0</sub>)/(1 &minus; <i>A</i><sub>0</sub><sup><i>L</i>+2</sup>)] <i>A</i><sub>0</sub><sup><i>L</i>+1</sup></b>.
+                As <i>L</i> &rarr; &infin;, <b>lim<sub><i>L</i>&rarr;&infin;</sub> &pi;<sub>p</sub> = (<i>A</i><sub>0</sub> &minus; 1)/<i>A</i><sub>0</sub></b> when <i>A</i><sub>0</sub> &gt; 1, and <b>0</b> when <i>A</i><sub>0</sub> &le; 1.</li>
             </ul>
 
             <h2>V. Current Simulator Values &amp; Comparison</h2>
             <table class="book-table">
                 <tr><th>Quantity</th><th>Formula / Method</th><th>Live Simulator Value</th></tr>
-                <tr><td>Theoretical Loss Probability (<i>P</i><sub>loss,theo</sub>)</td><td><i>P</i><sub><i>m</i>+<i>K</i></sub> (Eq. 1)</td><td>{p_loss_theo_str}</td></tr>
-                <tr><td>Simulated Loss Probability (<i>P</i><sub>loss,sim</sub>)</td><td><i>N</i><sub>dropped</sub> / <i>N</i><sub>arrived</sub> (Eq. 2)</td><td>{p_loss_sim*100.0:.2f}%</td></tr>
-                <tr class="bottom-rule"><td>Dropped / Total Arrivals</td><td>Empirical counters</td><td>{drop_tot:,} / {arr_tot:,} cust</td></tr>
+                <tr><td>Theoretical Blocking Probability (&pi;<sub>p,theo</sub>)</td><td>Analytical model (Eq. 1)</td><td>{p_loss_theo_str}</td></tr>
+                <tr><td>Simulated Blocking Probability (&pi;<sub>p,sim</sub>)</td><td><i>a<sub>p</sub></i> / <i>a</i> (Eq. 2)</td><td>{p_loss_sim*100.0:.2f}%</td></tr>
+                <tr class="bottom-rule"><td>Rejected Arrivals / Total Arrivals</td><td><i>a<sub>p</sub></i>(<i>T</i>) / <i>a</i>(<i>T</i>)</td><td>{drop_tot:,} / {arr_tot:,} cust</td></tr>
             </table>
             """
             return title, html
 
         # ---------------------------------------------------------------
-        # Topic 13: Little's Law Conservation Invariance (L_diff)
+        # Topic 13: Little's Law Invariance (A = \lambda_s \bar{\delta})
         # ---------------------------------------------------------------
         elif topic_index == 13:
-            L_sim = m_stats.get("L", 0.0)
-            W_sim = m_stats.get("W", 0.0)
-            lam_eff = m_stats.get("lambda_eff", 0.0)
+            title = "Metric Theory: Little's Law Invariance (A = λ_s δ̄)"
+            L_sim = m_stats.get("A", m_stats.get("L", 0.0))
+            W_sim = m_stats.get("delta_bar", m_stats.get("W", 0.0))
+            lam_eff = m_stats.get("lambda_s", m_stats.get("lambda_eff", 0.0))
             littles_L = m_stats.get("littles_L", 0.0)
-            littles_err = m_stats.get("littles_error_L", 0.0)
+            littles_err = m_stats.get("littles_error_A", m_stats.get("littles_error_L", 0.0))
 
             eq1 = latex_eq_row(
-                r"L = \lambda_{\mathrm{eff}} \cdot W \qquad \mathrm{and} \qquad L_q = \lambda_{\mathrm{eff}} \cdot W_q",
+                r"A = \lambda_s \bar{\delta}, \qquad A_c = \lambda_s \bar{\eta}, \qquad A_s = \lambda_s \bar{\vartheta}",
                 eq_num=1,
                 zoom_factor=zoom_factor,
             )
             eq2 = latex_eq_row(
-                r"L_{\mathrm{diff}} = \left| \bar{L}_{\mathrm{sim}} - \lambda_{\mathrm{eff, sim}} \cdot \bar{W}_{\mathrm{sim}} \right| \longrightarrow 0 \quad (T_{\mathrm{end}} \to \infty)",
+                r"\left| \bar{A}_{\mathrm{sim}} - \lambda_{s,\mathrm{sim}} \cdot \bar{\delta}_{\mathrm{sim}} \right| \xrightarrow[T_{\mathrm{end}} \to \infty]{} 0, \qquad A = A_c + A_s = \lambda_s\left(\bar{\eta} + \bar{\vartheta}\right)",
                 eq_num=2,
                 zoom_factor=zoom_factor,
             )
 
             html = f"""{css}
-            <h1>Metric Theory: Little's Law Conservation Identity (<i>L</i> = <i>&lambda;</i><sub>eff</sub><i>W</i>)</h1>
+            <h1>Metric Theory: Little's Law Invariance (<i>A</i> = <i>&lambda;<sub>s</sub></i> &delta;&#772;)</h1>
             <div class="meta-line">
-                <b>Theorem:</b> John D. C. Little (1961) &nbsp;|&nbsp; <b>Scope:</b> Universal Conservation Law
+                <b>Theorem:</b> John D. C. Little (1961) &nbsp;|&nbsp; <b>Fundamental Relations:</b> <i>A</i> = <i>&lambda;<sub>s</sub></i> &delta;&#772; &nbsp;|&nbsp; <i>A<sub>c</sub></i> = <i>&lambda;<sub>s</sub></i> &eta;&#772; &nbsp;|&nbsp; <i>A<sub>s</sub></i> = <i>&lambda;<sub>s</sub></i> &vartheta;&#772;
             </div>
 
             <h2>I. What is this Theorem?</h2>
             <p>
-                <b>Little's Law</b> is the most fundamental conservation law in queueing theory and performance analysis.
-                It states that the long-run average number of customers in any stationary system (<b><i>L</i></b>) is identically equal to the rate of admitted customers (<b><i>&lambda;</i><sub>eff</sub></b>) multiplied by the average time each customer spends in the system (<b><i>W</i></b>).
+                <b>Little's Law</b> is the most celebrated and fundamental relation in traffic theory and queueing systems.
+                It states that the average traffic intensity in any stationary queuing system (<b><i>A</i></b>) is identically equal to the rate of customers admitted into the system (<b><i>&lambda;<sub>s</sub></i></b>) multiplied by the average sojourn time spent by customers in the system (<b>&delta;&#772;</b>):
+                <br/><center><b><i>A</i> = <i>&lambda;<sub>s</sub></i> &middot; &delta;&#772;</b></center>
             </p>
 
             <h2>II. Parameters Involved</h2>
             <ul>
-                <li><b><i>L</i>:</b> Average number of customers in the total system.</li>
-                <li><b><i>L<sub>q</sub></i>:</b> Average number of customers waiting in the queue buffer.</li>
-                <li><b><i>&lambda;</i><sub>eff</sub>:</b> Rate of admitted customers into the system (in cust/s).</li>
-                <li><b><i>W</i>:</b> Average total system sojourn time per customer (in seconds).</li>
-                <li><b><i>W<sub>q</sub></i>:</b> Average queue wait time per customer (in seconds).</li>
-                <li><b><i>L</i><sub>diff</sub>:</b> The difference |<i>L</i><sub>sim</sub> &minus; <i>&lambda;</i><sub>eff,sim</sub> &middot; <i>W</i><sub>sim</sub>|, which measures convergence.</li>
+                <li><b><i>A</i>:</b> Average traffic in the entire queuing system, in Erlang (E).</li>
+                <li><b><i>A<sub>c</sub></i>:</b> Average traffic waiting in the queue buffer, in Erlang (E).</li>
+                <li><b><i>A<sub>s</sub></i>:</b> Average traffic being served in the servers, in Erlang (E) (<i>A<sub>s</sub></i> = <i>m &middot; &rho;</i>).</li>
+                <li><b><i>&lambda;<sub>s</sub></i> = (1 &minus; &pi;<sub>p</sub>)<i>&lambda;</i>:</b> Admitted rate of customers entering the system, in cust/s.</li>
+                <li><b>&delta;&#772;:</b> Average sojourn time in the system, in seconds.</li>
+                <li><b>&eta;&#772;:</b> Average waiting time in the queue, in seconds.</li>
+                <li><b>&vartheta;&#772; = 1/&mu;:</b> Average service time in the servers, in seconds.</li>
             </ul>
 
             <h2>III. Mathematical Formulas &amp; Runtime Computation</h2>
-            <p>Little's Law applies both to the entire system and strictly to the buffer:</p>
+            <p>Little's Law applies to the entire queuing system and to each of its subsystems (the queue and the servers):</p>
             {eq1}
-            <p>In a finite simulation run, <i>L</i><sub>diff</sub> measures the exact empirical verification:</p>
+            <p>In a finite simulation run, the absolute error measures convergence to the exact theoretical identity:</p>
             {eq2}
 
-            <h2>IV. Key Properties for Network Students</h2>
+            <h2>IV. Key Properties</h2>
             <ul>
-                <li><b>Universal &amp; Distribution-Free:</b> Little's Law holds regardless of arrival distribution (Exponential, Deterministic, Uniform, Pareto) and regardless of service distribution!</li>
-                <li><b>Scheduling-Agnostic:</b> It holds whether the queue discipline is FIFO, LIFO, Round-Robin, or Strict Priority (and even holds individually within each priority class <i>p</i>: <i>L<sub>p</sub></i> = <i>&lambda;</i><sub>eff,<i>p</i></sub> &middot; <i>W<sub>p</sub></i>).</li>
-                <li><b>Verification Tool:</b> If a simulator or model does not satisfy Little's Law, there is a fundamental bug in the implementation!</li>
+                <li><b>Universal &amp; Distribution-Free:</b> Little's Law holds for any arrival process distribution and any service distribution!</li>
+                <li><b>Subsystem Additivity:</b> Because &delta;&#772; = &eta;&#772; + &vartheta;&#772;, multiplying both sides by <i>&lambda;<sub>s</sub></i> gives:
+                <b><i>A</i> = <i>&lambda;<sub>s</sub></i> &delta;&#772; = <i>&lambda;<sub>s</sub></i> &eta;&#772; + <i>&lambda;<sub>s</sub></i> &vartheta;&#772; = <i>A<sub>c</sub></i> + <i>A<sub>s</sub></i></b>.</li>
+                <li><b>Scheduling-Agnostic:</b> Holds under FIFO, LIFO, Random Choice, and Priority disciplines.</li>
             </ul>
 
             <h2>V. Current Simulator Values &amp; Verification</h2>
             <table class="book-table">
                 <tr><th>Quantity</th><th>Formula / Method</th><th>Live Simulator Value</th></tr>
-                <tr><td>Simulated System Occupancy (<i>L</i><sub>sim</sub>)</td><td>Continuous time integral</td><td>{L_sim:.5f} cust</td></tr>
-                <tr><td>Effective Admitted Rate (<i>&lambda;</i><sub>eff,sim</sub>)</td><td><i>N</i><sub>admitted</sub> / <i>T</i><sub>end</sub></td><td>{lam_eff:.5f} cust/s</td></tr>
-                <tr><td>Simulated Sojourn Time (<i>W</i><sub>sim</sub>)</td><td>Mean over completed customers</td><td>{W_sim:.5f} s</td></tr>
-                <tr><td>Little's Law Product (<i>&lambda;</i><sub>eff,sim</sub> &middot; <i>W</i><sub>sim</sub>)</td><td>Conservation product</td><td>{littles_L:.5f} cust</td></tr>
-                <tr class="bottom-rule"><td>Conservation Error (<i>L</i><sub>diff</sub>)</td><td>|<i>L</i><sub>sim</sub> &minus; <i>&lambda;</i><sub>eff,sim</sub><i>W</i><sub>sim</sub>|</td><td>{littles_err:.5f} (Verified)</td></tr>
+                <tr><td>Simulated System Traffic (<i>A</i><sub>sim</sub>)</td><td>Continuous time integral</td><td>{L_sim:.5f} Erlang</td></tr>
+                <tr><td>Admitted Arrival Rate (<i>&lambda;</i><sub>s,sim</sub>)</td><td><i>N</i><sub>admitted</sub> / <i>T</i><sub>end</sub></td><td>{lam_eff:.5f} cust/s</td></tr>
+                <tr><td>Simulated Sojourn Time (&delta;&#772;<sub>sim</sub>)</td><td>Sample mean over completed customers</td><td>{W_sim:.5f} s</td></tr>
+                <tr><td>Little's Law Product (<i>&lambda;</i><sub>s,sim</sub> &middot; &delta;&#772;<sub>sim</sub>)</td><td>Conservation product</td><td>{littles_L:.5f} Erlang</td></tr>
+                <tr class="bottom-rule"><td>Conservation Error (|<i>A</i><sub>sim</sub> &minus; <i>&lambda;</i><sub>s,sim</sub>&delta;&#772;<sub>sim</sub>|)</td><td>Absolute discrepancy</td><td>{littles_err:.5f} (Verified)</td></tr>
             </table>
             """
             return title, html
 
         # ---------------------------------------------------------------
-        # Topic 14: Customer Throughput & Accounting (Served / Arrived)
+        # Topic 14: Traffic Accounting & Throughput (d(t) / a(t))
         # ---------------------------------------------------------------
         else:
+            title = "Metric Theory: Traffic Accounting & Throughput (d(t) / a(t))"
             arr_tot = m_stats.get("arrived", 0)
             served_tot = m_stats.get("served", 0)
             dropped_tot = m_stats.get("dropped", 0)
             in_sys_tot = (engine.total_in_system if engine else max(0, arr_tot - served_tot - dropped_tot))
             t_sim = max(1e-4, m_stats.get("T", 0.0))
-            lam_eff = m_stats.get("lambda_eff", 0.0)
+            lam_eff = m_stats.get("lambda_s", m_stats.get("lambda_eff", 0.0))
             throughput_sim = served_tot / t_sim if t_sim > 0.01 else 0.0
 
             eq1 = latex_eq_row(
-                r"N_{\mathrm{arrived}} = N_{\mathrm{served}} + N(t) + N_{\mathrm{dropped}}",
+                r"k(t) = k(0) + a(t) - d(t) = k(0) + a_s(t) - d(t)",
                 eq_num=1,
                 zoom_factor=zoom_factor,
             )
             eq2 = latex_eq_row(
-                r"\gamma_{\mathrm{sim}} = \frac{N_{\mathrm{served}}}{T_{\mathrm{end}}} \xrightarrow[T_{\mathrm{end}}\to\infty]{} \lambda_{\mathrm{eff}} = \lambda\left(1 - P_{\mathrm{loss}}\right) \leq m\mu",
+                r"a(t) = d(t) + k(t) + a_p(t), \qquad \lim_{t\to\infty} \frac{d(t)}{t} = \lambda_s = (1 - \pi_p)\lambda \le m\mu",
                 eq_num=2,
                 zoom_factor=zoom_factor,
             )
 
             html = f"""{css}
-            <h1>Metric Theory: Customer Throughput &amp; Flow Accounting (Served / Arrived)</h1>
+            <h1>Metric Theory: Traffic Accounting &amp; Throughput (<i>d</i>(<i>t</i>) / <i>a</i>(<i>t</i>))</h1>
             <div class="meta-line">
-                <b>Metric Symbol:</b> <i>N</i><sub>served</sub> / <i>N</i><sub>arrived</sub> &nbsp;|&nbsp; <b>Meaning:</b> Cumulative Completed Departures vs. Total Offered Arrivals
+                <b>Metric Symbol:</b> <i>d</i>(<i>t</i>) / <i>a</i>(<i>t</i>) &nbsp;|&nbsp; <b>Traffic Balance:</b> <i>A</i><sub>0</sub> = <i>A<sub>s</sub></i> + <i>A<sub>p</sub></i> &nbsp;|&nbsp; <b>Customer Balance:</b> <i>k</i>(<i>t</i>) = <i>k</i>(0) + <i>a</i>(<i>t</i>) &minus; <i>d</i>(<i>t</i>)
             </div>
 
             <h2>I. What is this Metric?</h2>
             <p>
-                <b>Served / Arrived</b> displays the primary customer accounting counters maintained by the simulation engine from time <i>t</i> = 0:
+                <b>Departures <i>d</i>(<i>t</i>) / Arrivals <i>a</i>(<i>t</i>)</b> displays customer accounting from the outside of the teletraffic system as a black box:
             </p>
             <ul>
-                <li><b>Arrived (<i>N</i><sub>arrived</sub>):</b> The cumulative total number of customers generated by the arrival process and presented to the system entrance.</li>
-                <li><b>Served (<i>N</i><sub>served</sub>):</b> The cumulative total number of customers that successfully completed their service in one of the <i>m</i> servers and departed the facility.</li>
+                <li><b>Total Arrivals <i>a</i>(<i>t</i>):</b> The cumulative total number of customers that arrived at the system up to time <i>t</i>.</li>
+                <li><b>Departures <i>d</i>(<i>t</i>):</b> The cumulative total number of customers that completed service and left the system up to time <i>t</i>.</li>
+                <li><b>Rejected Arrivals <i>a<sub>p</sub></i>(<i>t</i>):</b> The cumulative total number of customers dropped due to buffer capacity being full.</li>
+                <li><b>Traffic in System <i>k</i>(<i>t</i>):</b> The instantaneous number of customers inside the system at time <i>t</i>.</li>
             </ul>
 
             <h2>II. Parameters Involved</h2>
             <ul>
-                <li><b><i>N</i><sub>arrived</sub>:</b> Total customer arrival events generated since simulation start.</li>
-                <li><b><i>N</i><sub>served</sub>:</b> Total service completion and departure events.</li>
-                <li><b><i>N</i>(<i>t</i>):</b> Instantaneous number of customers currently inside the system (waiting in buffer + in service).</li>
-                <li><b><i>N</i><sub>dropped</sub>:</b> Customers rejected upon arrival because the queue buffer was full (when <i>K</i> &lt; &infin;).</li>
-                <li><b><i>T</i><sub>end</sub>:</b> Total elapsed simulation clock time, in <b>seconds</b>.</li>
-                <li><b><i>&gamma;</i> = <i>N</i><sub>served</sub> / <i>T</i><sub>end</sub>:</b> Empirical system throughput (departure rate), in <b>cust/s</b>.</li>
-                <li><b><i>&lambda;</i><sub>eff</sub> = <i>&lambda;</i>(1 &minus; <i>P</i><sub>loss</sub>):</b> Theoretical effective arrival and departure rate in steady state.</li>
+                <li><b><i>a</i>(<i>t</i>):</b> Total arrivals up to time <i>t</i>.</li>
+                <li><b><i>d</i>(<i>t</i>):</b> Total departures up to time <i>t</i>.</li>
+                <li><b><i>a<sub>p</sub></i>(<i>t</i>):</b> Total rejected arrivals up to time <i>t</i>.</li>
+                <li><b><i>k</i>(<i>t</i>):</b> Instantaneous customer count (resource occupancy).</li>
+                <li><b><i>A</i><sub>0</sub> = &lambda;&vartheta;&#772;:</b> Offered traffic in Erlangs.</li>
+                <li><b><i>A<sub>s</sub></i> = &lambda;<sub>s</sub>&vartheta;&#772; = (1 &minus; &pi;<sub>p</sub>)<i>A</i><sub>0</sub>:</b> Served or carried traffic in Erlangs.</li>
+                <li><b><i>A<sub>p</sub></i> = &lambda;<sub>p</sub>&vartheta;&#772; = &pi;<sub>p</sub> <i>A</i><sub>0</sub>:</b> Rejected or lost traffic in Erlangs.</li>
+                <li><b><i>&lambda;<sub>s</sub></i>:</b> Rate of customers entering the system (system throughput).</li>
             </ul>
 
             <h2>III. Mathematical Formulas &amp; Runtime Computation</h2>
-            <p>Every customer that arrives at the queue must follow the fundamental <b>Customer Conservation Law</b>:</p>
+            <p>The fundamental equation of traffic in the system relates arrivals, departures, and state:</p>
             {eq1}
-            <p>The long-run system throughput (rate of served customer departures) converges to the carried arrival rate:</p>
+            <p>Customer conservation across admitted, waiting, and dropped streams leads to:</p>
             {eq2}
 
-            <h2>IV. Key Properties for Network Students</h2>
+            <h2>IV. Key Properties</h2>
             <ul>
-                <li><b>Lossless Systems (<i>K</i> = &infin;, <i>&rho;</i> &lt; 1):</b> No customers are ever rejected (<i>N</i><sub>dropped</sub> = 0). The ratio <i>N</i><sub>served</sub> / <i>N</i><sub>arrived</sub> approaches 1.0 as the simulation runs, with the only difference being the customers <i>N</i>(<i>t</i>) currently in transit.</li>
-                <li><b>Finite Buffer Loss (<i>K</i> &lt; &infin;):</b> When buffer overflows occur, <i>N</i><sub>dropped</sub> &gt; 0. The fraction of served customers converges to 1 &minus; <i>P</i><sub>loss</sub>.</li>
-                <li><b>Throughput Bottleneck (<i>m&mu;</i>):</b> Even if arrivals occur at infinite rate (<i>&lambda;</i> &rarr; &infin;), the maximum departure rate can never exceed the total server capacity <b><i>m &middot; &mu;</i></b>.</li>
+                <li><b>Lossless Systems (<i>K</i> = &infin;, <i>&rho;</i> &lt; 1):</b> No customers are ever rejected (<i>a<sub>p</sub></i> = 0, &pi;<sub>p</sub> = 0), so carried traffic equals offered traffic: <b><i>A<sub>s</sub></i> = <i>A</i><sub>0</sub></b>.</li>
+                <li><b>Finite Buffer Loss (<i>K</i> &lt; &infin;):</b> Dropped customers produce lost traffic <b><i>A<sub>p</sub></i> = &pi;<sub>p</sub> <i>A</i><sub>0</sub></b>, leaving carried throughput <b><i>&lambda;<sub>s</sub></i> = (1 &minus; &pi;<sub>p</sub>)&lambda;</b>.</li>
+                <li><b>Capacity Bottleneck (<i>m&mu;</i>):</b> The system departure throughput can never exceed total server capacity: <b><i>&lambda;<sub>s</sub></i> &le; <i>m &middot; &mu;</i></b>.</li>
             </ul>
 
             <h2>V. Current Simulator Values &amp; Flow Accounting</h2>
             <table class="book-table">
                 <tr><th>Accounting Item</th><th>Formula / Origin</th><th>Live Simulator Count / Value</th></tr>
-                <tr><td>Total Customer Arrivals (<i>N</i><sub>arrived</sub>)</td><td>Arrival generator counter</td><td>{arr_tot} cust</td></tr>
-                <tr><td>Completed &amp; Served (<i>N</i><sub>served</sub>)</td><td>Service departure counter</td><td>{served_tot} cust</td></tr>
-                <tr><td>Currently in System (<i>N</i>(<i>t</i>))</td><td>Queue backlog + active servers</td><td>{in_sys_tot} cust</td></tr>
-                <tr><td>Rejected Drops (<i>N</i><sub>dropped</sub>)</td><td>Buffer full discards</td><td>{dropped_tot} cust</td></tr>
-                <tr class="bottom-rule"><td>Flow Balance Check (Served + InSystem + Dropped)</td><td>Eq. (1) Conservation</td><td>{served_tot + in_sys_tot + dropped_tot} cust (Matches Arrived: {arr_tot})</td></tr>
+                <tr><td>Total Customer Arrivals (<i>a</i>(<i>t</i>))</td><td>Arrival generator counter</td><td>{arr_tot} cust</td></tr>
+                <tr><td>Completed &amp; Served (<i>d</i>(<i>t</i>))</td><td>Departure counter</td><td>{served_tot} cust</td></tr>
+                <tr><td>Currently in System (<i>k</i>(<i>t</i>))</td><td>Queue backlog + active servers</td><td>{in_sys_tot} cust</td></tr>
+                <tr><td>Rejected Drops (<i>a<sub>p</sub></i>(<i>t</i>))</td><td>Buffer overflow discards</td><td>{dropped_tot} cust</td></tr>
+                <tr class="bottom-rule"><td>Flow Balance Check (<i>d</i>(<i>t</i>) + <i>k</i>(<i>t</i>) + <i>a<sub>p</sub></i>(<i>t</i>))</td><td>Eq. (2) Conservation</td><td>{served_tot + in_sys_tot + dropped_tot} cust (Matches <i>a</i>(<i>t</i>): {arr_tot})</td></tr>
             </table>
             """
             return title, html
@@ -1459,14 +1506,14 @@ class TheoryDialog(QDialog):
             "Hyperexponential (H₂ - Bursty)",
             "Pareto (Heavy-Tailed)",
             "System Instability & Ergodicity (ρ ≥ 1.0)",
-            "Metric Theory: Server Utilization U (ρ)",
-            "Metric Theory: Avg System Customers (L)",
-            "Metric Theory: Avg Queue Length (Lq)",
-            "Metric Theory: Avg System Time (W)",
-            "Metric Theory: Avg Wait Time (Wq)",
-            "Metric Theory: Loss Probability (P_loss)",
-            "Metric Theory: Little's Law Invariance (L_diff)",
-            "Metric Theory: Customer Throughput (Served / Arrived)",
+            "Metric Theory: Server Utilization ρ (Offered Traffic A₀)",
+            "Metric Theory: Avg Traffic in System A (k(t))",
+            "Metric Theory: Avg Queue Backlog A_c",
+            "Metric Theory: Avg Sojourn Time δ̄",
+            "Metric Theory: Avg Waiting Time η̄ (and ε̄)",
+            "Metric Theory: Blocking Probability π_p",
+            "Metric Theory: Little's Law Invariance (A = λ_s δ̄)",
+            "Metric Theory: Traffic Accounting & Throughput (d(t) / a(t))",
         ])
         self.combo_topic.setStyleSheet(
             "background-color: #313244; color: #cdd6f4; font-size: 11px; "

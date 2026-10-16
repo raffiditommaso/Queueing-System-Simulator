@@ -302,17 +302,24 @@ class GlobalZoomFilter(QObject):
         if event.type() == QEvent.Type.NativeGesture:
             if hasattr(event, 'gestureType') and event.gestureType() == Qt.NativeGestureType.ZoomNativeGesture:
                 delta = event.value()
-                # If Theory PDF tab is active in main window, pinch-zoom the PDF anchored at pointer
+                global_pos = QCursor.pos()
+
+                # If Theory PDF tab is active in main window AND cursor is over the PDF canvas:
                 if hasattr(self.main_window, 'is_theory_tab_active') and self.main_window.is_theory_tab_active():
                     pdf_v = getattr(self.main_window.theory_tab, 'pdf_view', None)
-                    anchor = pdf_v.viewport().mapFromGlobal(QCursor.pos()) if pdf_v else None
-                    self.main_window.theory_tab.apply_pinch_zoom(delta, anchor_pos=anchor)
-                    return True
+                    if pdf_v is not None and pdf_v.isVisible():
+                        vp = pdf_v.viewport()
+                        local_pos = vp.mapFromGlobal(global_pos)
+                        if vp.rect().contains(local_pos):
+                            self.main_window.theory_tab.apply_pinch_zoom(delta, anchor_pos=local_pos)
+                            return True
 
-                # If legacy TheoryDialog is open, zoom dialog text
+                # If legacy TheoryDialog is open and cursor is within its bounds:
                 if TheoryDialog.current_instance is not None:
-                    TheoryDialog.current_instance.apply_dialog_zoom(delta)
-                    return True
+                    dlg = TheoryDialog.current_instance
+                    if dlg.isVisible() and dlg.rect().contains(dlg.mapFromGlobal(global_pos)):
+                        dlg.apply_dialog_zoom(delta)
+                        return True
 
                 curr = obj
                 while curr is not None:
@@ -323,7 +330,8 @@ class GlobalZoomFilter(QObject):
                         curr = curr.parent()
                     else:
                         break
-                # Responsive sensitivity multiplier (5.0x) for fluid, responsive zoom
+
+                # Outside the theory canvas (e.g. left parameters bar, header, or tabs): zoom the entire window
                 self.main_window.adjust_page_zoom(delta * 5.0)
                 return True
 
@@ -332,18 +340,27 @@ class GlobalZoomFilter(QObject):
             # Ctrl + Wheel: Zoom application viewport or active dialog/tab
             if event.modifiers() & Qt.KeyboardModifier.ControlModifier:
                 delta = 0.12 if event.angleDelta().y() > 0 else -0.12
+                global_pos = QCursor.pos()
+
+                # If Theory PDF tab is active in main window AND cursor is over the PDF canvas:
                 if hasattr(self.main_window, 'is_theory_tab_active') and self.main_window.is_theory_tab_active():
                     pdf_v = getattr(self.main_window.theory_tab, 'pdf_view', None)
-                    anchor = pdf_v.viewport().mapFromGlobal(QCursor.pos()) if pdf_v else None
-                    self.main_window.theory_tab.apply_wheel_zoom(delta, anchor_pos=anchor)
-                    return True
+                    if pdf_v is not None and pdf_v.isVisible():
+                        vp = pdf_v.viewport()
+                        local_pos = vp.mapFromGlobal(global_pos)
+                        if vp.rect().contains(local_pos):
+                            self.main_window.theory_tab.apply_wheel_zoom(delta, anchor_pos=local_pos)
+                            return True
 
+                # If legacy TheoryDialog is open and cursor is within its bounds:
                 if TheoryDialog.current_instance is not None:
-                    if delta > 0:
-                        TheoryDialog.current_instance.zoom_in(1)
-                    else:
-                        TheoryDialog.current_instance.zoom_out(1)
-                    return True
+                    dlg = TheoryDialog.current_instance
+                    if dlg.isVisible() and dlg.rect().contains(dlg.mapFromGlobal(global_pos)):
+                        if delta > 0:
+                            dlg.zoom_in(1)
+                        else:
+                            dlg.zoom_out(1)
+                        return True
 
                 curr = obj
                 while curr is not None:
@@ -357,6 +374,8 @@ class GlobalZoomFilter(QObject):
                         curr = curr.parent()
                     else:
                         break
+
+                # Outside the theory canvas (e.g. left parameters bar, header, or tabs): zoom the entire window
                 self.main_window.adjust_page_zoom(delta)
                 return True
             else:

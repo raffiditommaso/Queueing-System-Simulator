@@ -26,7 +26,7 @@ def parse_arguments() -> argparse.Namespace:
         help="Number of parallel servers m (integer >= 1)"
     )
     parser.add_argument(
-        '--queue', '-K', type=str, default='8',
+        '--queue', '-K', type=str, default='12',
         help="Queue capacity (int or 'inf')"
     )
     parser.add_argument(
@@ -118,26 +118,32 @@ def run_headless_cli(args: argparse.Namespace) -> None:
 
     sim.run_batch(max_events=args.events)
     m = sim.get_metrics()
+    a0 = (args.lambda_rate / args.service_rate) if not prio_enabled else ((args.p0_rate + args.p1_rate + args.p2_rate) / args.service_rate)
 
-    print(f"Simulation Time Reached:  t = {m['T']:.2f} s")
-    print(f"Total Arrivals:           {m['arrived']:,}")
-    print(f"Successfully Served:      {m['served']:,}")
-    print(f"Dropped / Rejected:       {m['dropped']:,} (Loss Rate: {m['p_loss']*100:.2f}%)")
-    print(f"Server Utilization U:     {m['rho']:.4f}")
-    print(f"Average in System (L):    {m['L']:.4f}")
-    print(f"Average in Queue (Lq):    {m['Lq']:.4f}")
-    print(f"Average System Time (W):  {m['W']:.4f} s")
-    print(f"Average Wait Time (Wq):   {m['Wq']:.4f} s")
+    print(f"Simulation Time Reached:      t = {m['T']:.2f} s")
+    print(f"Total Arrivals:               a(t) = {m['arrived']:,}")
+    print(f"Successfully Served:          d(t) = {m['served']:,}")
+    print(f"Dropped / Rejected:           a_p(t) = {m['dropped']:,} (Blocking π_p: {m['p_loss']*100:.2f}%)")
+    print(f"Theoretical Offered Traffic:  A₀ = {a0:.4f} Erlang (per server: {a0/c:.4f})")
+    print(f"Server Utilization ρ:         {m['rho']:.4f}")
+    print(f"Average in System (A):        {m['L']:.4f} Erlang / cust")
+    print(f"Average in Queue (A_c):       {m['Lq']:.4f} cust")
+    print(f"Average Sojourn Time (δ̄):     {m['W']:.4f} s")
+    print(f"Average Waiting Time (η̄):     {m['Wq']:.4f} s")
     print("-" * 70)
     if prio_enabled:
-        print("PER-PRIORITY MEAN WAITING TIMES (Wq):")
-        print(f"  Class 0 (High Priority P₀):   {m['Wq_prio'][0]:.4f} s  (Loss: {m['p_loss_prio'][0]*100:.2f}%)")
-        print(f"  Class 1 (Medium Priority P₁): {m['Wq_prio'][1]:.4f} s  (Loss: {m['p_loss_prio'][1]*100:.2f}%)")
-        print(f"  Class 2 (Low Priority P₂):    {m['Wq_prio'][2]:.4f} s  (Loss: {m['p_loss_prio'][2]*100:.2f}%)")
+        print("PER-PRIORITY MEAN WAITING TIMES (η̄):")
+        print(f"  Class 0 (High Priority P₀):   {m['Wq_prio'][0]:.4f} s  (Blocking π_p: {m['p_loss_prio'][0]*100:.2f}%)")
+        print(f"  Class 1 (Medium Priority P₁): {m['Wq_prio'][1]:.4f} s  (Blocking π_p: {m['p_loss_prio'][1]*100:.2f}%)")
+        print(f"  Class 2 (Low Priority P₂):    {m['Wq_prio'][2]:.4f} s  (Blocking π_p: {m['p_loss_prio'][2]*100:.2f}%)")
         print("-" * 70)
-    print("LITTLE'S LAW VERIFICATION (L = λ_eff * W):")
-    print(f"  Empirical L:          {m['L']:.5f}")
-    print(f"  Effective Throughput: λ_eff = {m['lambda_eff']:.5f}")
-    print(f"  λ_eff * W:            {m['littles_L']:.5f}")
-    print(f"  Absolute Error |diff|: {m['littles_error_L']:.6f} (Verified)")
+    print("LITTLE'S LAW VERIFICATION (A = λ_s * δ̄):")
+    print(f"  Average System Traffic A:     {m['L']:.5f}")
+    print(f"  Admitted Arrival Rate λ_s:   {m['lambda_eff']:.5f} cust/s")
+    print(f"  λ_s * δ̄:                     {m['littles_L']:.5f}")
+    print(f"  Absolute Error |A - λ_s δ̄|:   {m['littles_error_L']:.6f} (Verified)")
     print("=" * 70)
+
+
+if __name__ == '__main__':
+    run_headless_cli(parse_arguments())

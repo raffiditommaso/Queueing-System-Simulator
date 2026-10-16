@@ -35,7 +35,7 @@ class TheoreticalModels:
         a = lam / mu
         rho = a / c
         if rho >= 1.0:
-            return {'unstable': True, 'rho': rho, 'rho_offered': rho}
+            return {'unstable': True, 'rho': 1.0, 'rho_offered': rho, 'A_0': a}
 
         sum_terms = sum((a ** n) / math.factorial(n) for n in range(c))
         c_term = (a ** c) / (math.factorial(c) * (1.0 - rho))
@@ -57,6 +57,7 @@ class TheoreticalModels:
         return {
             'rho': rho,
             'rho_offered': rho,
+            'A_0': a,
             'p0': p0,
             'p_c': p_c,
             'L': L,
@@ -66,6 +67,19 @@ class TheoreticalModels:
             'p_loss': 0.0,
             'p_n': p_n,
             'unstable': False,
+            # Slideset aliases (Cerroni notation)
+            'A': L,
+            'A_c': Lq,
+            'A_s': a,
+            'A_p': 0.0,
+            'delta_bar': W,
+            'eta_bar': Wq,
+            'theta_bar': 1.0 / mu,
+            'epsilon_bar': (1.0 / mu) / (c - a),
+            'pi_p': 0.0,
+            'pi_r': p_c,
+            'lambda_s': lam,
+            'lambda_p': 0.0,
         }
 
     @staticmethod
@@ -99,6 +113,7 @@ class TheoreticalModels:
         return {
             'rho': rho_carried,
             'rho_offered': rho_offered,
+            'A_0': a,
             'p0': p0,
             'L': L,
             'Lq': Lq,
@@ -108,6 +123,17 @@ class TheoreticalModels:
             'lambda_eff': lambda_eff,
             'p_n': p_n,
             'unstable': False,
+            # Slideset aliases (Cerroni notation)
+            'A': L,
+            'A_c': Lq,
+            'A_s': (1.0 - p_loss) * a,
+            'A_p': p_loss * a,
+            'delta_bar': W,
+            'eta_bar': Wq,
+            'theta_bar': 1.0 / mu,
+            'pi_p': p_loss,
+            'lambda_s': lambda_eff,
+            'lambda_p': lam * p_loss,
         }
 
     @staticmethod
@@ -115,9 +141,10 @@ class TheoreticalModels:
         es = service_dist.mean()
         if es <= 0 or lam <= 0:
             return {}
-        rho = lam * es
+        a = lam * es
+        rho = a
         if rho >= 1.0:
-            return {'unstable': True, 'rho': rho, 'rho_offered': rho}
+            return {'unstable': True, 'rho': 1.0, 'rho_offered': rho, 'A_0': a}
 
         es2 = service_dist.second_moment()
         Wq = (lam * es2) / (2.0 * (1.0 - rho))
@@ -128,10 +155,22 @@ class TheoreticalModels:
         return {
             'rho': rho,
             'rho_offered': rho,
+            'A_0': a,
             'L': L,
             'Lq': Lq,
             'W': W,
             'Wq': Wq,
             'p_loss': 0.0,
             'unstable': False,
+            # Slideset aliases (Cerroni notation)
+            'A': L,
+            'A_c': Lq,
+            'A_s': a,
+            'A_p': 0.0,
+            'delta_bar': W,
+            'eta_bar': Wq,
+            'theta_bar': es,
+            'pi_p': 0.0,
+            'lambda_s': lam,
+            'lambda_p': 0.0,
         }

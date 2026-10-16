@@ -49,14 +49,14 @@ THEORY_TOPIC_NAMES = [
     ("Hyperexponential Distribution (H_2)", "Hyperexponential (H_2)"),
     ("Pareto Distribution (Heavy-Tailed)", "Pareto"),
     ("Stochastic Stability Theory & Ergodicity", "Stability Theory"),
-    ("Metric Theory: Average Server Utilization U (Traffic Intensity ρ)", "Server Utilization U"),
-    ("Metric Theory: Avg System Customers L", "Customers L"),
-    ("Metric Theory: Avg Queue Length Lq", "Queue Length Lq"),
-    ("Metric Theory: Avg System Time W", "System Time W"),
-    ("Metric Theory: Avg Wait Time Wq", "Wait Time Wq"),
-    ("Metric Theory: Loss Probability P_loss", "Loss Probability"),
-    ("Metric Theory: Little's Law Invariance L_diff", "Little's Law"),
-    ("Metric Theory: Customer Throughput & Accounting (Served / Arrived)", "Served / Arrived"),
+    ("Metric Theory: Server Utilization ρ (Offered Traffic A₀)", "Server Utilization ρ"),
+    ("Metric Theory: Avg Traffic in System A (k(t))", "Traffic in System A"),
+    ("Metric Theory: Avg Queue Backlog A_c", "Queue Backlog A_c"),
+    ("Metric Theory: Avg Sojourn Time δ̄", "Sojourn Time δ̄"),
+    ("Metric Theory: Avg Waiting Time η̄ (and ε̄)", "Waiting Time η̄"),
+    ("Metric Theory: Blocking Probability π_p", "Blocking Probability π_p"),
+    ("Metric Theory: Little's Law Invariance (A = λ_s δ̄)", "Little's Law"),
+    ("Metric Theory: Traffic Accounting & Throughput (d(t) / a(t))", "Throughput d(t)/a(t)"),
 ]
 
 
@@ -452,7 +452,7 @@ class TheoryPdfTab(QWidget):
     def _reload_current(self, topic_index: int, role: str):
         lam = sum(1.0 / d.mean() for d in self.engine.arrival_dists.values() if d is not None)
         mu = 1.0 / self.engine.service_dist.mean()
-        rho = lam / max(1e-6, self.engine.c * mu)
+        rho = self.engine.get_metrics()['rho']
         self.load_topic(
             topic_index=topic_index,
             role=role,
