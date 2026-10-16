@@ -23,8 +23,8 @@ class MarkovChainView(QWidget):
     def __init__(self, engine: QueueSimEngine, parent=None):
         super().__init__(parent)
         self.engine = engine
-        self.setMinimumHeight(98)
-        self.setMaximumHeight(108)
+        self.setMinimumHeight(130)
+        self.setMaximumHeight(148)
         self.setAttribute(Qt.WidgetAttribute.WA_OpaquePaintEvent, False)
 
     def paintEvent(self, event):
@@ -132,8 +132,8 @@ class MarkovChainView(QWidget):
         n_vis = len(visible_states)
         spacing = avail_w / max(1, n_vis - 1)
 
-        yc = 60
-        r = 12.5
+        yc = int(24 + (h - 24) / 2)
+        r = 13.5
 
         # Left Ellipsis if window shifted
         if start_s > 0:
@@ -162,7 +162,7 @@ class MarkovChainView(QWidget):
             p1 = QPointF(xc1 + r * 0.5, yc - r * 0.866)
             p2 = QPointF(xc2 - r * 0.5, yc - r * 0.866)
             mid_x = (p1.x() + p2.x()) / 2
-            mid_y = yc - r - 12
+            mid_y = yc - r - 15
             p_fwd.moveTo(p1)
             p_fwd.quadTo(QPointF(mid_x, mid_y), p2)
 
@@ -181,16 +181,16 @@ class MarkovChainView(QWidget):
             painter.drawPolygon(arrow_fwd)
 
             # Forward rate label λ
-            painter.setFont(QFont("Segoe UI", 7, QFont.Weight.Bold))
+            painter.setFont(QFont("Segoe UI", 8, QFont.Weight.Bold))
             painter.setPen(QColor("#89b4fa"))
-            painter.drawText(QRectF(mid_x - 15, mid_y - 8, 30, 12), Qt.AlignmentFlag.AlignCenter, "λ")
+            painter.drawText(QRectF(mid_x - 15, mid_y - 10, 30, 14), Qt.AlignmentFlag.AlignCenter, "λ")
 
             # 2. Backward Arc (Bottom): Death Transition s+1 -> s with rate min(s+1, c)μ
             p_bwd = QPainterPath()
             bp1 = QPointF(xc2 - r * 0.5, yc + r * 0.866)
             bp2 = QPointF(xc1 + r * 0.5, yc + r * 0.866)
             bmid_x = (bp1.x() + bp2.x()) / 2
-            bmid_y = yc + r + 12
+            bmid_y = yc + r + 15
             p_bwd.moveTo(bp1)
             p_bwd.quadTo(QPointF(bmid_x, bmid_y), bp2)
 
@@ -212,9 +212,9 @@ class MarkovChainView(QWidget):
             mu_multiplier = min(s_to, c)
             b_label = "μ" if mu_multiplier == 1 else f"{mu_multiplier}μ"
 
-            painter.setFont(QFont("Segoe UI", 7, QFont.Weight.Bold))
+            painter.setFont(QFont("Segoe UI", 8, QFont.Weight.Bold))
             painter.setPen(QColor("#a6e3a1"))
-            painter.drawText(QRectF(bmid_x - 15, bmid_y - 2, 30, 14), Qt.AlignmentFlag.AlignCenter, b_label)
+            painter.drawText(QRectF(bmid_x - 15, bmid_y - 3, 30, 14), Qt.AlignmentFlag.AlignCenter, b_label)
 
         # -------------------------------------------------------------------
         # State Nodes (Circles)
@@ -240,9 +240,9 @@ class MarkovChainView(QWidget):
                 painter.drawText(QRectF(xc - r, yc - r, 2 * r, 2 * r), Qt.AlignmentFlag.AlignCenter, str(s))
 
                 # Active Marker Indicator above the state
-                painter.setFont(QFont("Segoe UI", 6, QFont.Weight.Bold))
+                painter.setFont(QFont("Segoe UI", 7, QFont.Weight.Bold))
                 painter.setPen(QColor("#a6e3a1"))
-                painter.drawText(QRectF(xc - 15, yc - r - 13, 30, 12), Qt.AlignmentFlag.AlignCenter, "▼")
+                painter.drawText(QRectF(xc - 15, yc - r - 15, 30, 13), Qt.AlignmentFlag.AlignCenter, "▼")
             else:
                 # Inactive Node styling
                 is_capacity_limit = (not is_inf_k and s == N_max)

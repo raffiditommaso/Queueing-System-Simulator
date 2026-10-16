@@ -187,141 +187,132 @@ PLAYBACK_RESET_STYLE = (
 )
 
 
-
 def get_theory_html_css(zoom_factor: float = 1.0) -> str:
-    """
-    Generate authentic IEEEtran conference paper (10pt, Times New Roman, booktabs)
-    styling matching LaTeX:
-    \\documentclass[10pt,conference]{IEEEtran}
-    \\usepackage{amsmath,amssymb,amsfonts,booktabs}
-    """
-    base_pt = round(10.0 * zoom_factor, 1)
-    title_pt = round(16.0 * zoom_factor, 1)
+    base_pt = round(9.5 * zoom_factor, 1)
+    title_pt = round(11.5 * zoom_factor, 1)
     sec_pt = round(10.0 * zoom_factor, 1)
     sub_pt = round(9.0 * zoom_factor, 1)
-    table_pt = round(9.0 * zoom_factor, 1)
-    meta_pt = round(8.5 * zoom_factor, 1)
+    table_pt = round(8.8 * zoom_factor, 1)
+    meta_pt = round(8.0 * zoom_factor, 1)
 
     return f"""
     <style>
         body {{
-            font-family: 'Times New Roman', Times, 'Nimbus Roman No9 L', serif;
+            font-family: 'Cambria', 'Georgia', serif;
             font-size: {base_pt}pt;
-            color: #000000;
+            color: #181818;
             background-color: #ffffff;
-            margin: 10px 16px;
-            line-height: 1.48;
+            margin: 10px 18px;
+            line-height: 1.50;
         }}
-        h1 {{
-            font-family: 'Times New Roman', Times, serif;
+        h1, .doc-title {{
+            font-family: 'Cambria', 'Georgia', serif;
             font-size: {title_pt}pt;
             font-weight: bold;
-            color: #000000;
+            color: #111111;
             text-align: center;
-            margin-top: 6px;
-            margin-bottom: 8px;
-            border: none;
-            padding-bottom: 0px;
-            letter-spacing: -0.2px;
+            margin-top: 2px;
+            margin-bottom: 4px;
+            line-height: 1.25;
+            background-color: #ffffff;
         }}
         .meta-line {{
-            font-family: 'Times New Roman', Times, serif;
+            font-family: 'Cambria', 'Georgia', serif;
             font-size: {meta_pt}pt;
             font-style: italic;
-            color: #333333;
+            color: #444444;
             text-align: center;
-            margin-top: 4px;
-            margin-bottom: 18px;
-            border-bottom: 0.75pt solid #000000;
-            padding-bottom: 6px;
+            margin-top: 1px;
+            margin-bottom: 10px;
+            padding-bottom: 4px;
+            line-height: 1.25;
+            background-color: #ffffff;
         }}
-        h2 {{
-            font-family: 'Times New Roman', Times, serif;
+        h2, .sec-title {{
+            font-family: 'Cambria', 'Georgia', serif;
             font-size: {sec_pt}pt;
             font-weight: bold;
             text-align: left;
-            color: #000000;
-            margin-top: 18px;
-            margin-bottom: 8px;
-            border-bottom: 0.5pt solid #bbbbbb;
+            color: #111111;
+            margin-top: 10px;
+            margin-bottom: 4px;
             padding-bottom: 2px;
             page-break-after: avoid;
             break-after: avoid;
+            background-color: #ffffff;
         }}
-        h3 {{
-            font-family: 'Times New Roman', Times, serif;
-            font-size: {sec_pt}pt;
+        h3, .subsec-title {{
+            font-family: 'Cambria', 'Georgia', serif;
+            font-size: {sub_pt}pt;
             font-weight: bold;
             font-style: italic;
-            color: #000000;
-            margin-top: 14px;
-            margin-bottom: 6px;
-            border: none;
-            padding-bottom: 0px;
+            color: #111111;
+            margin-top: 8px;
+            margin-bottom: 3px;
             page-break-after: avoid;
             break-after: avoid;
+            background-color: #ffffff;
         }}
-        p {{
-            font-family: 'Times New Roman', Times, serif;
+        p, .def-paragraph {{
+            font-family: 'Cambria', 'Georgia', serif;
             font-size: {base_pt}pt;
-            text-align: justify;
+            text-align: left;
             margin-top: 0px;
-            margin-bottom: 10px;
-            line-height: 1.48;
-        }}
-        p.no-indent, .where-label {{
-            text-indent: 0;
+            margin-bottom: 9px;
+            line-height: 1.56;
         }}
         .eq-table {{
             width: 100%;
-            margin-top: 12px;
-            margin-bottom: 12px;
+            margin-top: 8px;
+            margin-bottom: 8px;
             border-collapse: collapse;
             page-break-inside: avoid;
             break-inside: avoid;
         }}
         .eq-num {{
-            font-family: 'Times New Roman', Times, serif;
-            font-size: {base_pt}pt;
-            color: #000000;
+            font-family: 'Cambria', 'Georgia', serif;
+            font-size: {sub_pt}pt;
+            color: #181818;
             text-align: right;
             padding-right: 6px;
+            white-space: nowrap;
         }}
         .where-label {{
-            margin-top: 6px;
-            margin-bottom: 6px;
+            font-family: 'Cambria', 'Georgia', serif;
+            margin-top: 4px;
+            margin-bottom: 3px;
             font-style: italic;
             font-size: {sub_pt}pt;
+            page-break-after: avoid;
+            break-after: avoid;
         }}
-        ul, ol {{
-            margin-top: 6px;
-            margin-bottom: 14px;
+        ul, ol, .param-list {{
+            margin-top: 4px;
+            margin-bottom: 12px;
             padding-left: 22px;
         }}
         li {{
-            font-family: 'Times New Roman', Times, serif;
+            font-family: 'Cambria', 'Georgia', serif;
             font-size: {base_pt}pt;
-            margin-bottom: 6px;
-            text-align: justify;
-            line-height: 1.46;
+            margin-bottom: 5px;
+            text-align: left;
+            line-height: 1.50;
             page-break-inside: avoid;
             break-inside: avoid;
         }}
-        /* Formal LaTeX booktabs style: heavy top/bottom rules, midrule below headers */
         table.book-table {{
             width: 100%;
             border-collapse: collapse;
-            margin-top: 16px;
-            margin-bottom: 22px;
-            font-family: 'Times New Roman', Times, serif;
+            margin-top: 12px;
+            margin-bottom: 18px;
+            font-family: 'Cambria', 'Georgia', serif;
             page-break-inside: avoid;
             break-inside: avoid;
         }}
         table.book-table th {{
-            border-top: 1.5pt solid #000000;
-            border-bottom: 0.75pt solid #000000;
-            background-color: transparent;
-            color: #000000;
+            border-top: 1.5pt solid #111111;
+            border-bottom: 0.75pt solid #111111;
+            color: #111111;
             font-weight: bold;
             text-align: left;
             padding: 5px 8px;
@@ -329,41 +320,36 @@ def get_theory_html_css(zoom_factor: float = 1.0) -> str:
         }}
         table.book-table td {{
             border: none;
-            padding: 5px 8px;
-            color: #000000;
+            padding: 4px 8px;
+            color: #181818;
             font-size: {table_pt}pt;
-            background-color: transparent;
         }}
         table.book-table tr.bottom-rule td {{
-            border-bottom: 1.5pt solid #000000;
+            border-bottom: 1.5pt solid #111111;
         }}
-        /* Academic Remark / Example environment (amsthm style, seamless paper white background) */
         .example-box {{
             background-color: #ffffff;
-            border-left: 2pt solid #000000;
-            padding: 6px 0px 6px 14px;
-            margin-top: 16px;
-            margin-bottom: 18px;
+            border-left: 2pt solid #222222;
+            padding: 6px 10px 6px 12px;
+            margin-top: 12px;
+            margin-bottom: 14px;
             font-size: {base_pt}pt;
+            font-family: 'Cambria', 'Georgia', serif;
             page-break-inside: avoid;
             break-inside: avoid;
         }}
         .example-title {{
+            font-family: 'Cambria', 'Georgia', serif;
             font-weight: bold;
             font-style: italic;
-            color: #000000;
+            color: #111111;
             margin-top: 0px;
-            margin-bottom: 8px;
+            margin-bottom: 6px;
             font-size: {base_pt}pt;
+            background-color: #ffffff;
         }}
-        .example-box ol, .example-box ul {{
-            margin-top: 6px;
-            margin-bottom: 6px;
-            padding-left: 18px;
-        }}
-        .example-box li {{
-            margin-bottom: 6px;
-            line-height: 1.46;
+        div, span, b, strong, i, em {{
+            font-family: 'Cambria', 'Georgia', serif;
         }}
     </style>
     """

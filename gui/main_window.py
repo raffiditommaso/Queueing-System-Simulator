@@ -898,8 +898,11 @@ class QueueSimulatorApp(QMainWindow):
         self.table_log.setColumnCount(4)
         self.table_log.setHorizontalHeaderLabels(["Sim Time", "Event Type", "Traffic Class", "Description"])
         self.table_log.horizontalHeader().setSectionResizeMode(3, QHeaderView.ResizeMode.Stretch)
-        self.table_log.setMaximumHeight(130)
-        vis_layout.addWidget(self.table_log, stretch=1)
+        self.table_log.verticalHeader().setVisible(False)
+        self.table_log.verticalHeader().setDefaultSectionSize(25)
+        self.table_log.setMinimumHeight(160)
+        self.table_log.setMaximumHeight(200)
+        vis_layout.addWidget(self.table_log, stretch=0)
 
         self.tabs.addTab(self.tab_visual, "Live Simulation")
 
@@ -1473,7 +1476,7 @@ class QueueSimulatorApp(QMainWindow):
             self._update_theory_table()
 
     def _update_event_log_table(self):
-        logs = list(self.engine.event_log)[-7:]
+        logs = list(self.engine.event_log)[-9:]
         self.table_log.setRowCount(len(logs))
         for row, ev in enumerate(reversed(logs)):
             t_item = QTableWidgetItem(f"{ev['time']:.2f}s")

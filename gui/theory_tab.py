@@ -119,7 +119,8 @@ class SmoothPdfView(QGraphicsView):
             self._max_page_width = 595.0
             return
 
-        self._rendered_scale = 2.0
+        dpr = self.viewport().devicePixelRatioF() if self.viewport() else 1.0
+        self._rendered_scale = max(1.0, self._zoom_factor * dpr)
         gap = 16
         y = gap
         max_w = 0.0
@@ -539,6 +540,7 @@ class TheoryPdfTab(QWidget):
         printer.setPageLayout(layout)
 
         doc = QTextDocument()
+        doc.setDefaultFont(QFont("Cambria"))
         doc.setDocumentMargin(0)
         doc.setPageSize(printer.pageRect(QPrinter.Unit.Point).size())
         doc.setHtml(html)
