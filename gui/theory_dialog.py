@@ -285,7 +285,8 @@ def generate_theory_html(
         ("Erlang Distribution (Kendall: E_r)", "E_k"),
         ("Hyperexponential Distribution (Kendall: H_2)", "H_2"),
         ("Pareto Distribution (Kendall: Heavy-Tailed)", "Pareto"),
-        ("Stochastic Stability Theory & Ergodicity", "Instability"),
+        ("Stochastic Stability: Overload (ρ ≥ 1.0 & Ergodicity)", "Overload"),
+        ("Stochastic Stability: Zero Service Rate (μ = 0 & Frozen)", "Zero Service Rate"),
         ("Metric Theory: Server Utilization ρ & Traffic Intensity", "rho"),
         ("Metric Theory: Average Traffic in the System A (L)", "L"),
         ("Metric Theory: Average Customers in Queue A_c (Lq)", "Lq"),
@@ -1258,36 +1259,52 @@ def generate_theory_html(
         return title, _format_theory_html(html)
 
     # ===================================================================
-    # Topic 6: Stochastic Stability Theory & Ergodicity
+    # Topic 6: Stochastic Stability: Overload (ρ ≥ 1.0 & Ergodicity)
     # ===================================================================
     elif topic_index == 6:
         lam_v = sys_lam
         mu_v = sys_mu
         c_v = sys_c
         c_v_str = "&infin;" if math.isinf(c_v) else str(c_v)
+        is_inf_servers = math.isinf(c_v)
+        K_v = engine.K if engine is not None else float("inf")
+        is_inf_queue = math.isinf(K_v)
+        K_str = "&infin;" if is_inf_queue else str(int(K_v))
 
         is_zero_mu = (mu_v <= 0.0)
-        is_inf_servers = math.isinf(c_v)
 
         if is_zero_mu:
             A0_v = float("inf")
             rho_0 = float("inf")
             A0_str = "&infin;"
-            rho_0_str = "&infin;" if not is_inf_servers else "&infin; (Accumulating)"
+            rho_0_str = "&infin;"
+            drift_v = lam_v
             min_loss_frac = 1.0 if not is_inf_servers else 0.0
+            status_note = "Frozen System (μ = 0 cust/s)"
         else:
             A0_v = lam_v / mu_v
             A0_str = f"{A0_v:.4f}"
             if is_inf_servers:
                 rho_0 = 0.0
                 rho_0_str = "0.0000"
+                drift_v = 0.0
                 min_loss_frac = 0.0
+                status_note = "Ample Servers (Stable)"
             else:
                 rho_0 = A0_v / c_v
                 rho_0_str = f"{rho_0:.4f}"
+                drift_v = max(0.0, lam_v - c_v * mu_v)
                 min_loss_frac = max(0.0, (A0_v - c_v) / A0_v) if A0_v > 0 else 0.0
+                if rho_0 < 0.85:
+                    status_note = "Subcritical (Stable)"
+                elif rho_0 < 1.0:
+                    status_note = "High Congestion (Stable)"
+                elif abs(rho_0 - 1.0) < 1e-6:
+                    status_note = "Critical (Null-Recurrent)"
+                else:
+                    status_note = "Supercritical (Overloaded)"
 
-        K_v = engine.K if engine is not None else float("inf")
+        min_loss_str = f"{min_loss_frac*100.0:.2f}% ({min_loss_frac:.4f})"
 
         eq1 = latex_eq_row(
             r"I(T) = \frac{1}{T} \int_{0}^{T} k(t)\,\mathrm{d}t",
@@ -1300,176 +1317,437 @@ def generate_theory_html(
             zoom_factor=zoom_factor,
         )
         eq3 = latex_eq_row(
-            r"A_0 = \lambda\,\overline{\vartheta} = \frac{\lambda}{\mu}",
+            r"A_0 = \lambda\,\overline{\vartheta} = \frac{\lambda}{\mu}, \qquad \rho = \frac{A_0}{m} = \frac{\lambda}{m\mu}",
             eq_num=3,
             zoom_factor=zoom_factor,
         )
         eq4 = latex_eq_row(
-            r"\rho = \frac{A_0}{m} = \frac{\lambda}{m\mu} < 1 \quad \Longleftrightarrow \quad A_0 < m \quad (\text{Unlimited Waiting Space})",
+            r"\rho = \frac{A_0}{m} = \frac{\lambda}{m\mu} < 1 \iff A_0 < m \quad (L = \infty)",
             eq_num=4,
             zoom_factor=zoom_factor,
         )
         eq5 = latex_eq_row(
-            r"\lim_{L \to \infty} \pi_p = \frac{A_0 - m}{A_0} = 1 - \frac{m}{A_0} \quad (A_0 > m)",
+            r"\frac{\mathrm{d}\mathbb{E}[k(t)]}{\mathrm{d}t} \approx \lambda - m\mu = m\mu(\rho - 1) > 0 \quad (\rho > 1)",
             eq_num=5,
             zoom_factor=zoom_factor,
         )
         eq6 = latex_eq_row(
-            r"\lim_{L \to \infty} \pi_p = 0 \quad (A_0 \leq m)",
+            r"\lim_{L \to \infty} \pi_p = \frac{A_0 - m}{A_0} = 1 - \frac{1}{\rho} \quad (\rho > 1)",
             eq_num=6,
             zoom_factor=zoom_factor,
         )
 
         params_eq1_eq6 = where_list([
-            ("<i>k</i>(<i>t</i>)", "Traffic in the system at time <i>t</i>, defined as the instantaneous number of customers in the system at time <i>t</i> (labeled <i>N</i>(<i>t</i>) in the simulator)."),
-            ("<i>I</i>(<i>T</i>)", "Average traffic in the system over a finite observation interval of duration <i>T</i>, in Erlangs (E)."),
-            ("<i>A</i> = &langle;<i>k</i>(<i>t</i>)&rangle;", "Average traffic intensity in the system (steady-state time average of <i>k</i>(<i>t</i>), labeled <i>L</i> in the simulator), measured in Erlangs (E)."),
-            ("<i>P<sub>k</sub></i>", "Steady-state probability of having <i>k</i> customers in the system."),
-            ("<i>A</i><sub>0</sub> = <i>&lambda;&vartheta;&#772;</i> = <i>&lambda;</i> / <i>&mu;</i>", "Traffic offered to the system, in Erlangs (E)."),
-            ("<i>m</i>", "Number of parallel servers in the system."),
-            ("<i>&rho;</i> = <i>A</i><sub>0</sub> / <i>m</i> = <i>&lambda;</i> / (<i>m&mu;</i>)", "Server utilization in a lossless system with unlimited waiting space, required to satisfy <i>&rho;</i> &lt; 1 for stability."),
-            ("<i>L</i> (or <i>n</i>, GUI: <i>K</i>)", "Size of the finite waiting space (queue capacity)."),
-            ("<i>&pi;<sub>p</sub></i>", "Blocking probability (fraction of arriving customers rejected due to the queue being full)."),
+            ("<i>k</i>(<i>t</i>)", "Instantaneous number of customers inside the system at time <i>t</i> (queued customers plus customers in service; labeled <i>N</i>(<i>t</i>) in simulator)."),
+            ("<i>I</i>(<i>T</i>)", "Sample-path time-average system occupancy measured over a finite observation horizon of duration <i>T</i> [Erlangs]."),
+            ("<i>A</i> = &langle;<i>k</i>(<i>t</i>)&rangle;", "Steady-state expected traffic intensity in the system (long-run time average limit of <i>k</i>(<i>t</i>); labeled <i>L</i> in simulator) [Erlangs]."),
+            ("<i>P<sub>k</sub></i>", "Stationary state probability of finding exactly <i>k</i> customers inside the system in statistical equilibrium."),
+            ("<i>A</i><sub>0</sub> = <i>&lambda;&vartheta;&#772;</i> = <i>&lambda;</i> / <i>&mu;</i>", "Traffic offered to the system by the arrival process [Erlangs]."),
+            ("<i>m</i>", "Total count of identical parallel service channels (servers)."),
+            ("<i>&mu;</i>", "Service completion rate per active server [cust/s], with mean service duration <i>&vartheta;&#772;</i> = 1/<i>&mu;</i> [s]."),
+            ("<i>&rho;</i> = <i>A</i><sub>0</sub> / <i>m</i> = <i>&lambda;</i> / (<i>m&mu;</i>)", "Server utilization / traffic intensity per server; must satisfy <i>&rho;</i> &lt; 1 for stochastic stability when buffer is unlimited (<i>L</i> = &infin;)."),
+            ("d&Eopf;[<i>k</i>(<i>t</i>)]/d<i>t</i>", "Mean queue accumulation drift rate under supercritical overload (<i>&rho;</i> &gt; 1) [cust/s]."),
+            ("<i>L</i> (GUI: <i>K</i>)", "Capacity of the waiting room buffer (maximum allowable queued customers)."),
+            ("<i>&pi;<sub>p</sub></i>", "Customer blocking / loss probability (fraction of arriving customers rejected due to full buffer)."),
         ])
 
         if is_zero_mu:
-            step1_html = (
-                f"<b>Offered Traffic <i>A</i><sub>0</sub> and Ratio <i>A</i><sub>0</sub>/<i>m</i> (Eqs. 3&ndash;4):</b> "
-                f"<br>With zero service rate <i>&mu;</i> = 0.00 cust/s (mean service duration <i>&vartheta;&#772;</i> = &infin;): "
-                f"<br><i>A</i><sub>0</sub> = <i>&lambda;&vartheta;&#772;</i> = {lam_v:.2f} / 0.00 = <b>&infin; E</b>, &nbsp;&nbsp; "
-                f"<i>A</i><sub>0</sub> / <i>m</i> = &infin; / {c_v_str} = <b>&infin;</b>."
-            )
-            step2_html = (
-                f"<br>With <i>&mu;</i> = 0.00 cust/s, no customer can ever complete service. "
-                + (
-                    f"Because servers are infinite (<i>m</i> = &infin;), every arriving customer enters an idle server and stays permanently: system occupancy <i>k</i>(<i>t</i>) grows monotonically without bound (<b>non-ergodic / accumulating regime</b>)."
-                    if is_inf_servers
-                    else f"With <i>m</i> = {c_v} finite servers, the system is <b>completely frozen and non-ergodic</b>: the queue accumulates without bound and the steady-state limit does not exist."
-                )
-            )
-            step3_html = (
-                f"<br>With infinite servers (<i>m</i> = &infin;), no customer is ever blocked (<i>&pi;<sub>p</sub></i> = 0.00%)."
-                if is_inf_servers
-                else f"<br>With <i>&mu;</i> = 0.00 cust/s and finite waiting space <i>L</i>, once the <i>m</i> + <i>L</i> slots fill up, all subsequent arrivals are rejected with 100% blocking probability (lim<sub><i>t</i>&rarr;&infin;</sub> <i>&pi;<sub>p</sub></i> = 100.00%)."
-            )
+            example_body = f"""
+            <p>
+                <b>System Configuration Note:</b> The service rate is currently set to <i>&mu;</i> = 0.00 cust/s.
+                For the specialized analysis of zero service rate, server deadlock, and terminal system paralysis,
+                refer to the dedicated theory page: <b>Stochastic Stability: Zero Service Rate (<i>&mu;</i> = 0 & Frozen)</b> (Topic 7).
+            </p>
+            <ol>
+                <li><b>Offered Traffic Singularity:</b> With <i>&mu;</i> = 0, <i>A</i><sub>0</sub> = <i>&lambda;</i>/<i>&mu;</i> = &infin; E.</li>
+                <li><b>Departure Extinction:</b> Departures remain identically zero (<i>d</i>(<i>t</i>) = 0), and throughput is <i>X</i> = 0.00 cust/s.</li>
+            </ol>
+            """
         elif is_inf_servers:
             p0_inf = math.exp(-A0_v)
-            step1_html = (
-                f"<b>Offered Traffic <i>A</i><sub>0</sub> and Ratio <i>A</i><sub>0</sub>/<i>m</i> (Eqs. 3&ndash;4):</b> "
-                f"<br><i>A</i><sub>0</sub> = <i>&lambda;&vartheta;&#772;</i> = {lam_v:.2f} / {mu_v:.2f} = <b>{A0_v:.4f} E</b>, &nbsp;&nbsp; "
-                f"<i>A</i><sub>0</sub> / <i>m</i> = {A0_v:.4f} / &infin; = <b>0.0000</b>."
-            )
-            step2_html = (
-                f"<br>Since the system possesses infinite parallel servers (<i>m</i> = &infin;), arriving customers never wait in queue "
-                f"(<i>&rho;</i> = <i>A</i><sub>0</sub>/&infin; = <b>0.0000</b> &lt; 1). The system is <b>unconditionally ergodic and stable</b> "
-                f"for any finite arrival rate <i>&lambda;</i> and service rate <i>&mu;</i> &gt; 0, following a Poisson steady-state distribution with "
-                f"<i>P</i><sub>0</sub> = <i>e</i><sup>&minus;<i>A</i><sub>0</sub></sup> = <i>e</i><sup>&minus;{A0_v:.4f}</sup> = <b>{p0_inf:.4f}</b>."
-            )
-            step3_html = (
-                f"<br>With infinite servers (<i>m</i> = &infin;), the blocking probability is identically <b><i>&pi;<sub>p</sub></i> = 0.00%</b> regardless of queue capacity."
-            )
+            example_body = f"""
+            <p>
+                Evaluating active parameters: arrival rate <i>&lambda;</i> = <b>{lam_v:.2f} cust/s</b>, parallel servers <i>m</i> = <b>&infin;</b>, service rate <i>&mu;</i> = <b>{mu_v:.2f} cust/s</b> (mean service time <i>&vartheta;&#772;</i> = {1.0/mu_v:.3f} s):
+            </p>
+            <ol>
+                <li><b>Offered Traffic Intensity (Eq. 3):</b>
+                    <br><i>A</i><sub>0</sub> = <i>&lambda;&vartheta;&#772;</i> = {lam_v:.2f} / {mu_v:.2f} = <b>{A0_v:.4f} Erlangs</b>.</li>
+                <li><b>Server Utilization and Stability (Eq. 4):</b>
+                    <br><i>&rho;</i> = <i>A</i><sub>0</sub> / <i>m</i> = {A0_v:.4f} / &infin; = <b>0.0000 &lt; 1</b>.
+                    With infinite servers (<i>M</i>/<i>G</i>/&infin;), arriving customers immediately find an idle server and never queue (<i>A<sub>c</sub></i> = 0). The system is <b>unconditionally stable and ergodic</b> for any finite <i>&lambda;</i> &gt; 0, following a Poisson steady-state distribution with zero-customer probability <i>P</i><sub>0</sub> = <i>e</i><sup>&minus;<i>A</i><sub>0</sub></sup> = <b>{p0_inf:.4f}</b>.</li>
+                <li><b>Zero Blocking Guarantee (Eq. 6):</b>
+                    <br>Because server capacity is unlimited, no customer is ever blocked (<i>&pi;<sub>p</sub></i> &equiv; 0.00%).</li>
+            </ol>
+            """
+        elif rho_0 < 1.0:
+            p0_text = f" (for <i>m</i> = 1, empty probability is <i>P</i><sub>0</sub> = 1 &minus; <i>&rho;</i> = <b>{1.0 - rho_0:.4f}</b>)" if c_v == 1 else ""
+            example_body = f"""
+            <p>
+                Evaluating active parameters: arrival rate <i>&lambda;</i> = <b>{lam_v:.2f} cust/s</b>, parallel servers <i>m</i> = <b>{c_v}</b>, service rate <i>&mu;</i> = <b>{mu_v:.2f} cust/s</b>:
+            </p>
+            <ol>
+                <li><b>Active Offered Traffic and Server Utilization (Eqs. 3&ndash;4):</b>
+                    <br><i>A</i><sub>0</sub> = <i>&lambda;</i> / <i>&mu;</i> = {lam_v:.2f} / {mu_v:.2f} = <b>{A0_v:.4f} Erlangs</b>.
+                    <br><i>&rho;</i> = <i>A</i><sub>0</sub> / <i>m</i> = {A0_v:.4f} / {c_v} = <b>{rho_0:.4f}</b> &lt; 1.00.
+                    Since <i>&rho;</i> &lt; 1, the active configuration is <b>stochastically stable and ergodic</b>{p0_text}.</li>
+                <li><b>Hypothetical Overload Scenario (If Arrival Rate Exceeds Server Capacity):</b>
+                    <br>Suppose arrival rate increased to <i>&lambda;&prime;</i> = <b>{c_v * mu_v * 1.5:.2f} cust/s</b> (50% above capacity):
+                    <br>&bull; Offered traffic becomes <i>A</i><sub>0</sub>&prime; = {c_v * 1.5:.2f} E &rArr; <i>&rho;&prime;</i> = <b>1.50 &gt; 1.0</b>.
+                    <br>&bull; With unlimited buffer (<i>L</i> = &infin;), backlog drifts upward at rate <i>&lambda;&prime;</i> &minus; <i>m&mu;</i> = {c_v * mu_v * 0.5:.2f} cust/s; after 1 hour (3600 s), expected backlog would reach <b>{int(c_v * mu_v * 0.5 * 3600):,} customers</b>.
+                    <br>&bull; With finite buffer (<i>L</i> &lt; &infin;), the system drops at least (1 &minus; 1/<i>&rho;&prime;</i>) = (1 &minus; 1/1.5) = <b>33.33% of all arrivals</b>, regardless of buffer size.</li>
+            </ol>
+            """
         else:
-            step1_html = (
-                f"<b>Offered Traffic <i>A</i><sub>0</sub> and Ratio <i>A</i><sub>0</sub>/<i>m</i> (Eqs. 3&ndash;4):</b> "
-                f"<br><i>A</i><sub>0</sub> = <i>&lambda;&vartheta;&#772;</i> = {lam_v:.2f} / {mu_v:.2f} = <b>{A0_v:.4f} E</b>, &nbsp;&nbsp; "
-                f"<i>A</i><sub>0</sub> / <i>m</i> = {A0_v:.4f} / {c_v} = <b>{rho_0:.4f}</b>."
-            )
-            p0_text = f" (for <i>m</i> = 1, the empty-system probability is <i>P</i><sub>0</sub> = 1 &minus; <i>&rho;</i> = <b>{1.0 - rho_0:.4f}</b>)" if c_v == 1 else ""
-            if rho_0 < 1.0:
-                step2_html = (
-                    f"<br>Since <i>A</i><sub>0</sub> = {A0_v:.4f} &lt; <i>m</i> = {c_v} (<i>&rho;</i> = {rho_0:.4f} &lt; 1), "
-                    f"an unlimited-queue system is <b>ergodic and stable</b>{p0_text}."
-                )
-                step3_html = (
-                    f"<br>Since <i>A</i><sub>0</sub> &le; <i>m</i>, lim<sub><i>L</i>&rarr;&infin;</sub> <i>&pi;<sub>p</sub></i> = 0, "
-                    f"so any desired blocking probability <i>&pi;<sub>p</sub></i> &gt; 0 can be achieved by choosing a sufficiently large queue size <i>L</i>."
-                )
-            else:
-                step2_html = (
-                    f"<br>Because <i>A</i><sub>0</sub> = {A0_v:.4f} &ge; <i>m</i> = {c_v} (<i>A</i><sub>0</sub>/<i>m</i> = {rho_0:.4f} &ge; 1), "
-                    f"an unlimited-queue system is <b>unstable</b>: the limit <i>A</i> = lim<sub><i>T</i>&rarr;&infin;</sub> <i>I</i>(<i>T</i>) "
-                    f"does not exist and <i>k</i>(<i>t</i>) grows without bound."
-                )
-                step3_html = (
-                    f"<br>Because <i>A</i><sub>0</sub> &gt; <i>m</i>, even if the finite waiting space <i>L</i> is made arbitrarily large (<i>L</i> &rarr; &infin;), "
-                    f"the blocking probability cannot be reduced below (<i>A</i><sub>0</sub> &minus; <i>m</i>)/<i>A</i><sub>0</sub> = "
-                    f"({A0_v:.4f} &minus; {c_v}) / {A0_v:.4f} = <b>{min_loss_frac:.4f}</b> ({min_loss_frac*100:.2f}%)."
-                )
-
-        status_note = (
-            "Non-ergodic (Frozen μ=0)"
-            if is_zero_mu
-            else ("Ample Servers (Stable)" if is_inf_servers else ("Stable for L=∞" if rho_0 < 1.0 else "Unstable for L=∞"))
-        )
-        floor_str = "100.00%" if (is_zero_mu and not is_inf_servers) else f"{min_loss_frac*100:.2f}%"
+            drift_sec = lam_v - c_v * mu_v
+            backlog_60s = int(round(drift_sec * 60.0))
+            backlog_1h = int(round(drift_sec * 3600.0))
+            example_body = f"""
+            <p>
+                Evaluating active parameters: arrival rate <i>&lambda;</i> = <b>{lam_v:.2f} cust/s</b>, parallel servers <i>m</i> = <b>{c_v}</b>, service rate <i>&mu;</i> = <b>{mu_v:.2f} cust/s</b> (aggregate service capacity <i>m&mu;</i> = <b>{c_v * mu_v:.2f} cust/s</b>):
+            </p>
+            <ol>
+                <li><b>Offered Traffic and Server Utilization (Eqs. 3&ndash;4):</b>
+                    <br><i>A</i><sub>0</sub> = <i>&lambda;</i> / <i>&mu;</i> = {lam_v:.2f} / {mu_v:.2f} = <b>{A0_v:.4f} Erlangs</b>.
+                    <br><i>&rho;</i> = <i>A</i><sub>0</sub> / <i>m</i> = {A0_v:.4f} / {c_v} = <b>{rho_0:.4f} &ge; 1.00</b>.
+                    Since <i>&rho;</i> &ge; 1, aggregate arrival rate exceeds aggregate service capacity (<i>&lambda;</i> = {lam_v:.2f} &ge; <i>m&mu;</i> = {c_v * mu_v:.2f}).</li>
+                <li><b>Supercritical Backlog Growth for Unlimited Buffer (<i>L</i> = &infin;, Eq. 5):</b>
+                    <br>The system exhibits a net positive accumulation drift of:
+                    <br>d&Eopf;[<i>k</i>(<i>t</i>)]/d<i>t</i> = <i>&lambda;</i> &minus; <i>m&mu;</i> = {lam_v:.2f} &minus; {c_v * mu_v:.2f} = <b>{drift_sec:.4f} cust/s</b>.
+                    <br>In an unbounded system, queue length explodes over time:
+                    <br>&bull; After 1 minute (<i>t</i> = 60 s): &Eopf;[<i>k</i>(60)] &approx; <b>{backlog_60s:,} customers</b> waiting.
+                    <br>&bull; After 1 hour (<i>t</i> = 3600 s): &Eopf;[<i>k</i>(3600)] &approx; <b>{backlog_1h:,} customers</b> waiting.</li>
+                <li><b>Inescapable Asymptotic Loss Floor for Finite Buffer (<i>L</i> &lt; &infin;, Eq. 6):</b>
+                    <br>Because servers can process at most <i>m&mu;</i> = {c_v * mu_v:.2f} cust/s, any customer arrivals beyond this capacity are lost.
+                    Even if the buffer <i>L</i> is made arbitrarily large (e.g., <i>L</i> = 10,000 slots), the blocking probability cannot be reduced below:
+                    <br>lim<sub><i>L</i>&rarr;&infin;</sub> <i>&pi;<sub>p</sub></i> = 1 &minus; 1/<i>&rho;</i> = 1 &minus; (1 / {rho_0:.4f}) = <b>{min_loss_str}</b>.
+                    Enlarging the queue only increases waiting latency without reducing loss.</li>
+            </ol>
+            """
 
         html = f"""{css}
-        <h1>Ergodicity and Stability of Queueing Systems (<i>&rho;</i> = <i>A</i><sub>0</sub>/<i>m</i> &lt; 1)</h1>
+        <h1>Ergodicity and Stochastic Stability in Overloaded Systems (<i>&rho;</i> = <i>A</i><sub>0</sub>/<i>m</i> &ge; 1.0)</h1>
         <div class="meta-line">
-            Active Parameters: <i>&lambda;</i> = {lam_v:.2f} cust/s, <i>m</i> = {c_v_str}, <i>&mu;</i> = {mu_v:.2f} cust/s,
-            Offered Traffic <i>A</i><sub>0</sub> = {A0_str} E, <i>A</i><sub>0</sub>/<i>m</i> = {rho_0_str}
+            Active Configuration: <i>&lambda;</i> = {lam_v:.2f} cust/s, <i>m</i> = {c_v_str}, <i>&mu;</i> = {mu_v:.2f} cust/s,
+            Offered Traffic <i>A</i><sub>0</sub> = {A0_str} E, Server Utilization <i>&rho;</i> = {rho_0_str}
         </div>
 
         <h2>1. Definition and Physical Interpretation</h2>
         <p class="def-paragraph">
-            <b>Definition (Steady Behavior and Ergodicity).</b> Let <i>k</i>(<i>t</i>) denote the number of customers in the
-            system at time <i>t</i>. The system exhibits a steady behavior over time if the time-average limit
-            <i>A</i> = lim<sub><i>T</i>&rarr;&infin;</sub> <i>I</i>(<i>T</i>) = &langle;<i>k</i>(<i>t</i>)&rangle; exists and is finite.
-            If <i>k</i>(<i>t</i>) is an <i>ergodic process</i>, <i>A</i> always exists and equals the statistical expectation
-            &sum; <i>kP<sub>k</sub></i> at a generic time.
+            <b>Definition (Statistical Equilibrium and Ergodicity).</b> A queueing process is said to be <i>ergodic</i>
+            if long-run time averages converge almost surely to stationary ensemble expectations, independently of initial conditions.
+            Let <i>k</i>(<i>t</i>) denote the instantaneous number of customers in the system at time <i>t</i>. Under ergodicity,
+            the time-average occupancy <i>I</i>(<i>T</i>) converges as <i>T</i> &rarr; &infin; to a finite constant <i>A</i> = &sum; <i>k P<sub>k</sub></i>.
         </p>
+        <p>
+            <b>The Overload Condition (<i>&rho;</i> &ge; 1.0).</b> The offered traffic intensity per server is defined as
+            <b><i>&rho;</i> = <i>A</i><sub>0</sub> / <i>m</i> = <i>&lambda;</i> / (<i>m&mu;</i>)</b>.
+            When <i>&rho;</i> &ge; 1.0, the average rate of customer workload arriving to the system equals or exceeds the maximum
+            sustainable processing capacity of all <i>m</i> servers combined (<i>&lambda;</i> &ge; <i>m&mu;</i>).
+        </p>
+        <p>
+            <b>Unlimited Waiting Space (<i>L</i> = &infin;) vs. Finite Waiting Space (<i>L</i> &lt; &infin;):</b>
+        </p>
+        <ul>
+            <li><b>Unlimited Waiting Space (<i>M</i>/<i>M</i>/<i>m</i>/&infin;):</b> When no buffer ceiling exists, no arriving customer is ever turned away. Because work arrives faster than it can be completed (<i>&lambda;</i> &gt; <i>m&mu;</i>), the backlog accumulates without bound. The underlying continuous-time Markov chain is <b>transient</b> (or <i>null-recurrent</i> when <i>&rho;</i> = 1.0). The steady-state probabilities collapse to <i>P<sub>k</sub></i> = 0 for all finite states <i>k</i>, and the queue length diverges to infinity (<i>A</i> = &infin;).</li>
+            <li><b>Finite Waiting Space (<i>M</i>/<i>M</i>/<i>m</i>/<i>L</i>):</b> When queue capacity <i>L</i> is finite, the system cannot hold more than <i>m</i> + <i>L</i> customers. Although a mathematical stationary distribution exists because the state space is finite, the system is <b>operationally congested and degraded</b>: excess arrivals are forcibly rejected with a non-zero blocking probability <i>&pi;<sub>p</sub></i> &gt; 0, and servers are saturated near 100% capacity.</li>
+        </ul>
 
         <h2>2. Mathematical Formulation</h2>
         <p>
-            The average traffic over an observation interval <i>T</i> and its asymptotic time-average limit <i>A</i> are defined as:
+            The finite-horizon time-average occupancy <i>I</i>(<i>T</i>) and the steady-state expectation <i>A</i> are governed by:
         </p>
         {eq1}
         {eq2}
         <p>
-            <b>Stability of Systems with Unlimited Waiting Space (<i>&#8499;</i>/<i>&#8499;</i>/<i>m</i> and <i>&#119970;</i>/<i>&#119970;</i>/<i>m</i>).</b>
-            When the waiting space is unlimited, no customers are rejected (<i>&lambda;<sub>p</sub></i> = 0, <i>A<sub>s</sub></i> = <i>A</i><sub>0</sub>).
-            The geometric series in the normalization constant <i>P</i><sub>0</sub> converges if and only if the offered traffic
-            <i>A</i><sub>0</sub> is strictly less than the number of servers <i>m</i>:
+            The offered traffic <i>A</i><sub>0</sub> and server utilization ratio <i>&rho;</i> are defined by:
         </p>
         {eq3}
+        <p>
+            <b>Stability Condition for Lossless Systems (Foster-Lyapunov / Kleinrock Criterion):</b>
+            For any system with unlimited queue capacity (<i>L</i> = &infin;), the Markov chain is positive recurrent (ergodic)
+            if and only if the server utilization is strictly less than unity:
+        </p>
         {eq4}
         <p>
-            <b>Systems with Limited Waiting Space (<i>&#8499;</i>/<i>&#8499;</i>/1/<i>L</i> and <i>&#8499;</i>/<i>&#8499;</i>/<i>m</i>/0).</b>
-            A finite-state Markov chain with limited queue size <i>L</i> &lt; &infin; is <i>always stable</i> for any <i>A</i><sub>0</sub> &gt; 0.
-            However, when <i>A</i><sub>0</sub> &gt; <i>m</i>, as <i>L</i> &rarr; &infin; the blocking probability converges to:
+            <b>Supercritical Overload Drift (<i>&rho;</i> &gt; 1.0):</b>
+            When <i>&rho;</i> &gt; 1.0 and <i>L</i> = &infin;, all <i>m</i> servers are permanently busy. The expected rate of change of the backlog
+            is positive, driving linear backlog accumulation over time:
         </p>
         {eq5}
+        <p>
+            <b>Asymptotic Blocking Floor in Finite Buffers:</b>
+            When <i>&rho;</i> &gt; 1.0, increasing the finite waiting buffer <i>L</i> cannot eliminate customer drops.
+            By flow conservation (<i>&lambda;<sub>s</sub></i> &le; <i>m&mu;</i>), as <i>L</i> &rarr; &infin; the blocking probability converges to a non-zero lower bound:
+        </p>
         {eq6}
         {params_eq1_eq6}
 
         <h2>3. Theoretical Properties and Queueing Analysis</h2>
         <ul>
-            <li><b>General Single-Server Equilibrium Identity (<i>P</i><sub>0</sub> = 1 &minus; <i>&rho;</i>):</b> For any ergodic single-server system (<i>&#119970;</i>/<i>&#119970;</i>/1) with finite mean inter-arrival and service times, partitioning an observation interval <i>T</i> into busy time <i>B</i>(<i>T</i>) = <i>T</i>(1 &minus; <i>P</i><sub>0</sub>) and idle time <i>I</i>(<i>T</i>) = <i>TP</i><sub>0</sub> and equating departures <i>d</i>(<i>T</i>) = <i>B</i>(<i>T</i>)<i>&mu;</i> to arrivals <i>a</i>(<i>T</i>) = <i>&lambda;T</i> yields <i>T</i>(1 &minus; <i>P</i><sub>0</sub>)<i>&mu;</i> = <i>&lambda;T</i> &rArr; <b><i>P</i><sub>0</sub> = 1 &minus; <i>&lambda;</i>/<i>&mu;</i> = 1 &minus; <i>&rho;</i></b>, which holds strictly only when <i>&rho;</i> &lt; 1.</li>
+            <li><b>The Three Stochastic Regimes:</b>
+                <br>&bull; <i>Subcritical Regime (<i>&rho;</i> &lt; 1.0):</i> Positive recurrent (ergodic). State probabilities decay geometrically (<i>P<sub>k</sub></i> &prop; <i>&rho;<sup>k</sup></i>). The queue empties infinitely often with probability 1. Little's Law holds with finite mean waiting time <i>&eta;&#772;</i> &lt; &infin;.
+                <br>&bull; <i>Critical Regime (<i>&rho;</i> = 1.0):</i> Null recurrent. Mean drift is zero (&Delta; = <i>&lambda;</i> &minus; <i>m&mu;</i> = 0). The backlog executes an unbounded random walk. While the system will eventually return to state 0 with probability 1, the expected return time is infinite (&infin;). Time-average queue length diverges as <i>O</i>(&radic;<i>t</i>), so no steady-state distribution exists.
+                <br>&bull; <i>Supercritical Regime (<i>&rho;</i> &gt; 1.0):</i> Transient. Positive drift &Delta; = <i>&lambda;</i> &minus; <i>m&mu;</i> &gt; 0. By the Functional Central Limit Theorem (diffusion approximation), the queue length process drifts linearly at rate (<i>&lambda;</i> &minus; <i>m&mu;</i>)<i>t</i> with Gaussian fluctuations of order <i>O</i>(&radic;<i>t</i>).
+            </li>
+            <li><b>The Buffer Sizing Fallacy:</b>
+                Engineers frequently attempt to "fix" an overloaded system (<i>&rho;</i> &gt; 1) by expanding the buffer capacity <i>L</i>.
+                However, Eq. (6) proves that expanding <i>L</i> <b>does not reduce customer drop rate</b> below the thermodynamic floor 1 &minus; 1/<i>&rho;</i>.
+                Instead, a larger buffer merely delays the inevitable: incoming packets spend an agonizingly long time in queue
+                (<i>&eta;&#772;</i> &approx; <i>L</i> / (<i>m&mu;</i>)), causing severe <i>bufferbloat</i> and timeout retransmissions, before the buffer fills up and drops packets at the exact same rate.
+            </li>
         </ul>
 
         <h2>4. Worked Numerical Example</h2>
         <div class="example-box">
-            <p class="example-title">Example 1 (Stability Evaluation under Active Parameters: &lambda; = {lam_v:.2f} cust/s, m = {c_v_str}, &mu; = {mu_v:.2f} cust/s)</p>
-            <ol>
-                <li>{step1_html}</li>
-                <li><b>Unlimited Queue Assessment (Eq. 4):</b>{step2_html}</li>
-                <li><b>Asymptotic Blocking Floor for Finite Queue <i>L</i> (Eqs. 5&ndash;6):</b>{step3_html}</li>
-            </ol>
+            <p class="example-title">Example 1 (Stability and Overload Evaluation under Active Parameters)</p>
+            {example_body}
         </div>
 
-        <h2>5. Summary of Stability Quantities</h2>
+        <h2>5. Summary of Overload Stability Quantities</h2>
         <table class="book-table">
-            <tr><th>Quantity</th><th>Course Symbol</th><th>Analytical Formula</th><th>Active Value</th></tr>
-            <tr><td>Offered Traffic</td><td><i>A</i><sub>0</sub></td><td><i>&lambda;&vartheta;&#772;</i> = <i>&lambda;</i> / <i>&mu;</i></td><td>{A0_str} E</td></tr>
-            <tr><td>Number of Servers</td><td><i>m</i></td><td>Configured server count</td><td>{c_v_str}</td></tr>
-            <tr><td>Offered Load per Server</td><td><i>A</i><sub>0</sub> / <i>m</i></td><td><i>&lambda;</i> / (<i>m&mu;</i>)</td><td>{rho_0_str} ({status_note})</td></tr>
-            <tr class="bottom-rule"><td>Asymptotic Blocking Floor (<i>L</i>&rarr;&infin;)</td><td>lim<sub><i>L</i>&rarr;&infin;</sub> <i>&pi;<sub>p</sub></i></td><td>max(0, (<i>A</i><sub>0</sub> &minus; <i>m</i>)/<i>A</i><sub>0</sub>)</td><td>{floor_str}</td></tr>
+            <tr><th>Quantity</th><th>Course Symbol</th><th>Analytical Formula</th><th>Active Configuration</th><th>Physical Interpretation</th></tr>
+            <tr><td>Offered Traffic</td><td><i>A</i><sub>0</sub></td><td><i>&lambda;&vartheta;&#772;</i> = <i>&lambda;</i> / <i>&mu;</i></td><td>{A0_str} E</td><td>Work arriving per mean service duration</td></tr>
+            <tr><td>Parallel Servers</td><td><i>m</i></td><td>Server count</td><td>{c_v_str}</td><td>Number of parallel processing channels</td></tr>
+            <tr><td>Server Utilization Ratio</td><td><i>&rho;</i> = <i>A</i><sub>0</sub> / <i>m</i></td><td><i>&lambda;</i> / (<i>m&mu;</i>)</td><td>{rho_0_str}</td><td>{status_note}</td></tr>
+            <tr><td>Unlimited Buffer Drift (<i>L</i> = &infin;)</td><td>d&Eopf;[<i>k</i>(<i>t</i>)]/d<i>t</i></td><td>max(0, <i>&lambda;</i> &minus; <i>m&mu;</i>)</td><td>{drift_v:.4f} cust/s</td><td>Net rate of backlog accumulation</td></tr>
+            <tr class="bottom-rule"><td>Asymptotic Blocking Floor (<i>L</i> &rarr; &infin;)</td><td>lim<sub><i>L</i>&rarr;&infin;</sub> <i>&pi;<sub>p</sub></i></td><td>max(0, 1 &minus; 1/<i>&rho;</i>)</td><td>{min_loss_str}</td><td>Inescapable loss fraction under overload</td></tr>
         </table>
         """
         return title, _format_theory_html(html)
 
     # ===================================================================
-    # Topics 7 to 14: Performance Metrics
+    # Topic 7: Stochastic Stability: Zero Service Rate (μ = 0 & Frozen)
+    # ===================================================================
+    elif topic_index == 7:
+        lam_v = sys_lam
+        mu_v = sys_mu
+        c_v = sys_c
+        c_v_str = "&infin;" if math.isinf(c_v) else str(c_v)
+        is_inf_servers = math.isinf(c_v)
+        K_v = engine.K if engine is not None else float("inf")
+        is_inf_queue = math.isinf(K_v)
+        K_str = "&infin;" if is_inf_queue else str(int(K_v))
+
+        is_finite_cap = (not is_inf_servers and not is_inf_queue)
+        tot_cap = (c_v + int(K_v)) if is_finite_cap else float("inf")
+        tot_cap_str = str(int(tot_cap)) if is_finite_cap else "&infin;"
+
+        t_sat = (tot_cap / lam_v) if (is_finite_cap and lam_v > 0) else float("inf")
+        t_sat_str = f"{t_sat:.2f} s" if is_finite_cap else "&infin; (Unlimited Slots)"
+
+        eq1 = latex_eq_row(
+            r"A_0 = \lim_{\mu \to 0^+} \lambda\,\overline{\vartheta} = \lim_{\mu \to 0^+} \frac{\lambda}{\mu} = \infty\text{ Erlangs}",
+            eq_num=1,
+            zoom_factor=zoom_factor,
+        )
+        eq2 = latex_eq_row(
+            r"X = \lim_{t \to \infty} \frac{d(t)}{t} = m\mu = 0\text{ cust/s}, \qquad d(t) \equiv 0 \quad (\forall t \ge 0)",
+            eq_num=2,
+            zoom_factor=zoom_factor,
+        )
+        eq3 = latex_eq_row(
+            r"k(t) = a(t) - d(t) = a(t) = \sum_{i=1}^{N_a(t)} 1 \quad (t < T_{\mathrm{sat}})",
+            eq_num=3,
+            zoom_factor=zoom_factor,
+        )
+        eq4 = latex_eq_row(
+            r"\mathbb{E}[k(t)] = \lambda \cdot t \xrightarrow[t \to \infty]{} \infty \quad (L = \infty \text{ or } m = \infty)",
+            eq_num=4,
+            zoom_factor=zoom_factor,
+        )
+        eq5 = latex_eq_row(
+            r"T_{\mathrm{sat}} \approx \frac{m + L}{\lambda} = \frac{m + K}{\lambda} \quad (\text{Expected Full Lockup Time})",
+            eq_num=5,
+            zoom_factor=zoom_factor,
+        )
+        eq6 = latex_eq_row(
+            r"\lim_{t \to \infty} \pi_p(t) = \lim_{t \to \infty} \frac{a(t) - (m+L)}{a(t)} = 1.00 = 100\% \quad (m < \infty, L < \infty)",
+            eq_num=6,
+            zoom_factor=zoom_factor,
+        )
+
+        params_eq1_eq6 = where_list([
+            ("<i>&mu;</i> = 0.00 cust/s", "Configured zero service completion rate, representing total server paralysis, worker thread deadlock, or downstream outage."),
+            ("<i>&vartheta;&#772;</i> = 1/<i>&mu;</i> &rarr; &infin;", "Mean customer service duration; with <i>&mu;</i> = 0, service times are infinite and active servers never release customers."),
+            ("<i>A</i><sub>0</sub> = &infin; E", "Offered traffic intensity; incoming workload diverges to infinity relative to zero service output capacity."),
+            ("<i>X</i> = 0.00 cust/s", "System carried throughput (rate of completed customer departures), identically zero."),
+            ("<i>d</i>(<i>t</i>) &equiv; 0", "Cumulative departure counting process; zero service completions can ever take place for any <i>t</i> &ge; 0."),
+            ("<i>a</i>(<i>t</i>)", "Cumulative arrival counting process (number of customers arrived up to time <i>t</i>)."),
+            ("<i>k</i>(<i>t</i>)", "Instantaneous system occupancy (active servers plus waiting queue backlog)."),
+            ("<i>T</i><sub>sat</sub>", "Expected system saturation time [s], at which all <i>m</i> servers and <i>L</i> buffer slots are permanently filled."),
+            ("<i>m</i>", "Total count of parallel service channels (servers)."),
+            ("<i>L</i> (GUI: <i>K</i>)", "Waiting room buffer capacity (maximum allowable queued customers)."),
+            ("<i>&pi;<sub>p</sub></i>(<i>t</i>)", "Time-dependent customer loss probability (fraction of arriving customers rejected); approaches 100% asymptotically as <i>t</i> &rarr; &infin;."),
+        ])
+
+        if is_inf_servers:
+            example_body = f"""
+            <p>
+                Evaluating active parameters: arrival rate <i>&lambda;</i> = <b>{lam_v:.2f} cust/s</b>, servers <i>m</i> = <b>&infin;</b>, service rate <i>&mu;</i> = <b>0.00 cust/s</b>:
+            </p>
+            <ol>
+                <li><b>Accumulation in Infinite Server Array (Eqs. 3&ndash;4):</b>
+                    <br>Because parallel servers are unlimited (<i>m</i> = &infin;), every arriving customer immediately enters an idle server.
+                    However, with <i>&mu;</i> = 0 cust/s, no customer is ever discharged.
+                    The number of busy servers <i>c</i><sub>busy</sub>(<i>t</i>) = <i>k</i>(<i>t</i>) increases without bound:
+                    <br>&Eopf;[<i>k</i>(<i>t</i>)] = <i>&lambda; &middot; t</i> = {lam_v:.2f} &middot; <i>t</i> customers.</li>
+                <li><b>Zero Blocking with Divergent Occupancy:</b>
+                    <br>No customer is ever rejected (<i>&pi;<sub>p</sub></i> = 0.00%), but the active server footprint expands indefinitely.
+                    After 1 hour (3600 s), exactly <b>{int(round(lam_v * 3600)):,} servers</b> will be locked permanently.</li>
+            </ol>
+            """
+        elif is_inf_queue:
+            example_body = f"""
+            <p>
+                Evaluating active parameters: arrival rate <i>&lambda;</i> = <b>{lam_v:.2f} cust/s</b>, servers <i>m</i> = <b>{c_v}</b>, buffer <i>K</i> = <b>&infin;</b>, service rate <i>&mu;</i> = <b>0.00 cust/s</b>:
+            </p>
+            <ol>
+                <li><b>Permanent Server Seizure:</b>
+                    <br>The first <i>m</i> = {c_v} arriving customers seize all {c_v} servers within an expected duration of {c_v/lam_v:.2f} s.
+                    Because <i>&mu;</i> = 0, these {c_v} servers are locked forever.</li>
+                <li><b>Infinite Queue Backlog Divergence (Eqs. 3&ndash;4):</b>
+                    <br>Because the waiting room is infinite (<i>L</i> = &infin;), all subsequent customers enter the queue and wait indefinitely.
+                    Backlog grows linearly at rate <i>&lambda;</i> = <b>{lam_v:.2f} cust/s</b>:
+                    <br>&bull; After 1 minute (60 s): &Eopf;[<i>k</i>(60)] &approx; <b>{int(round(lam_v * 60)):,} customers</b> trapped.
+                    <br>&bull; After 1 hour (3600 s): &Eopf;[<i>k</i>(3600)] &approx; <b>{int(round(lam_v * 3600)):,} customers</b> trapped.</li>
+                <li><b>Zero Departures (Eq. 2):</b>
+                    <br>Cumulative departures remain identically zero (<i>d</i>(<i>t</i>) &equiv; 0), and throughput is <b><i>X</i> = 0.00 cust/s</b>.</li>
+            </ol>
+            """
+        else:
+            t_sat_calc = tot_cap / lam_v if lam_v > 0 else 0.0
+            t_eval = max(3600.0, t_sat_calc * 2.0)
+            arr_at_eval = int(round(lam_v * t_eval))
+            drop_at_eval = max(0, arr_at_eval - int(tot_cap))
+            loss_pct_eval = (drop_at_eval / arr_at_eval * 100.0) if arr_at_eval > 0 else 0.0
+
+            example_body = f"""
+            <p>
+                Evaluating active parameters: arrival rate <i>&lambda;</i> = <b>{lam_v:.2f} cust/s</b>, servers <i>m</i> = <b>{c_v}</b>, waiting buffer <i>K</i> = <b>{int(K_v)}</b>, service rate <i>&mu;</i> = <b>0.00 cust/s</b>:
+            </p>
+            <ol>
+                <li><b>Total System Capacity:</b>
+                    <br>The maximum number of customers the system can accommodate simultaneously is:
+                    <br><i>N</i><sub>max</sub> = <i>m</i> + <i>K</i> = {c_v} servers + {int(K_v)} buffer slots = <b>{int(tot_cap)} customer capacity</b>.</li>
+                <li><b>Expected Saturation Time (<i>T</i><sub>sat</sub>, Eq. 5):</b>
+                    <br>Starting from an empty system (<i>k</i>(0) = 0), all available slots will be filled in:
+                    <br><i>T</i><sub>sat</sub> &approx; (<i>m</i> + <i>K</i>) / <i>&lambda;</i> = {int(tot_cap)} / {lam_v:.2f} = <b>{t_sat_calc:.2f} seconds</b>.</li>
+                <li><b>Phase 1: Transient Fill-Up (0 &le; <i>t</i> &lt; {t_sat_calc:.2f} s):</b>
+                    <br>The first {c_v} customers enter service and lock all {c_v} servers forever.
+                    The next {int(K_v)} customers enter the waiting line. During this entire phase, completed departures are <b><i>d</i>(<i>t</i>) = 0</b>.</li>
+                <li><b>Phase 2: Terminal Lockup & 100% Service Denial (<i>t</i> &ge; {t_sat_calc:.2f} s, Eq. 6):</b>
+                    <br>At <i>t</i> = {t_sat_calc:.2f} s, the system is 100% saturated. From this instant onward, <b>every single arriving customer is dropped</b> (<i>&lambda;<sub>p</sub></i> = <i>&lambda;</i> = {lam_v:.2f} cust/s).
+                    <br>&bull; At <i>t</i> = {t_eval:.0f} s, total arrivals equal <i>a</i>(<i>t</i>) &approx; <b>{arr_at_eval:,} customers</b>.
+                    <br>&bull; Exactly <b>{int(tot_cap)} customers</b> remain permanently trapped in the servers and buffer.
+                    <br>&bull; Exactly <b>{drop_at_eval:,} customers</b> have been dropped, yielding an empirical loss fraction of <b>{loss_pct_eval:.2f}%</b> (converging to <b>100.00%</b> as <i>t</i> &rarr; &infin;).
+                    <br>&bull; System throughput is identically <b><i>X</i> = 0.00 cust/s</b> (zero completed services).</li>
+            </ol>
+            """
+
+        html = f"""{css}
+        <h1>Stochastic Stability Theory: Zero Service Rate & Complete Outage (<i>&mu;</i> = 0.00 cust/s)</h1>
+        <div class="meta-line">
+            Active Parameters: <i>&lambda;</i> = {lam_v:.2f} cust/s, <i>m</i> = {c_v_str}, <i>&mu;</i> = 0.00 cust/s (<i>&vartheta;&#772;</i> = &infin;),
+            Queue Buffer <i>K</i> = {K_str}, Total System Capacity = {tot_cap_str}
+        </div>
+
+        <h2>1. Definition and Physical Interpretation</h2>
+        <p class="def-paragraph">
+            <b>Definition (Zero Service Rate / Service Paralysis).</b> In queueing theory and teletraffic systems,
+            setting the service rate to zero (<b><i>&mu;</i> = 0.00 cust/s</b>) corresponds to an infinite mean service time
+            (<b><i>&vartheta;&#772;</i> = 1/<i>&mu;</i> &rarr; &infin;</b>). Once a customer is assigned to a server, the service
+            transaction never completes. The server remains permanently occupied and is never returned to the idle pool.
+        </p>
+        <p>
+            <b>Physical Mechanisms in Real Systems:</b>
+            Zero service rate models real-world catastrophic failure modes:
+        </p>
+        <ul>
+            <li><b>Database and Thread Deadlock:</b> Worker threads blocked indefinitely waiting on unreleased mutex locks or circular transaction deadlocks.</li>
+            <li><b>Downstream Outage / Backpressure Halt:</b> Complete network link disconnection or downstream service outage halting packet transmission.</li>
+            <li><b>Hardware Hang / Resource Starvation:</b> Storage I/O freeze or process deadlock halting execution.</li>
+        </ul>
+        <p>
+            <b>Contrast with General Overload (<i>&rho;</i> &ge; 1.0 with <i>&mu;</i> &gt; 0):</b>
+            In general traffic overload (Topic 6), servers continue working at their maximum aggregate processing speed
+            (carried throughput <i>X</i> = <i>m&mu;</i> &gt; 0 cust/s); backlog builds up because arrivals arrive faster than this non-zero departure rate.
+            In contrast, under zero service rate (<i>&mu;</i> = 0), <b>the departure process is completely extinguished</b>:
+            cumulative departures are identically zero (<b><i>d</i>(<i>t</i>) &equiv; 0</b>) for all <i>t</i> &ge; 0, and carried throughput collapses to zero (<b><i>X</i> = 0.00 cust/s</b>).
+        </p>
+
+        <h2>2. Mathematical Formulation</h2>
+        <p>
+            Because mean service duration is infinite, the offered traffic <i>A</i><sub>0</sub> exhibits a mathematical singularity:
+        </p>
+        {eq1}
+        <p>
+            The departure counting process <i>d</i>(<i>t</i>) and system throughput <i>X</i> are identically null:
+        </p>
+        {eq2}
+        <p>
+            By the sample-path customer conservation law, with zero departures the instantaneous system occupancy <i>k</i>(<i>t</i>)
+            equals the raw arrival process <i>a</i>(<i>t</i>) until all available system slots are filled:
+        </p>
+        {eq3}
+        <p>
+            For an unlimited waiting room (<i>L</i> = &infin;) or infinite servers (<i>m</i> = &infin;), system occupancy diverges
+            linearly in expectation as a non-stationary Poisson integrator:
+        </p>
+        {eq4}
+        <p>
+            <b>System Saturation Time (<i>T</i><sub>sat</sub>):</b> In a finite-capacity system with <i>m</i> servers and waiting buffer <i>L</i>,
+            total system capacity is <i>m</i> + <i>L</i>. The expected time until the system reaches total lockup is:
+        </p>
+        {eq5}
+        <p>
+            <b>Asymptotic Blocking Floor (Complete Service Denial):</b> Once <i>t</i> &ge; <i>T</i><sub>sat</sub>, every subsequent arrival
+            finds the system completely full and is rejected. The asymptotic customer drop probability approaches 100%:
+        </p>
+        {eq6}
+        {params_eq1_eq6}
+
+        <h2>3. Theoretical Properties and Structural Breakdown</h2>
+        <ul>
+            <li><b>Phase 1: Transient Fill-Up (0 &le; <i>t</i> &lt; <i>T</i><sub>sat</sub>):</b>
+                During the initial interval, the system functions as a pure queueing accumulator. The first <i>m</i> arrivals seize the <i>m</i> idle servers.
+                Because <i>&mu;</i> = 0, none of these <i>m</i> customers ever depart. The subsequent <i>L</i> arrivals fill up the waiting buffer slots one by one.
+                Departures remain strictly zero (<i>d</i>(<i>t</i>) = 0).
+            </li>
+            <li><b>Phase 2: Total Terminal Lockup (<i>t</i> &ge; <i>T</i><sub>sat</sub>):</b>
+                At time <i>t</i> = <i>T</i><sub>sat</sub>, all <i>m</i> + <i>L</i> slots are permanently occupied.
+                The Markov chain reaches an <b>absorbing terminal state</b> <i>k</i> = <i>m</i> + <i>L</i> from which no transitions back to <i>k</i> &minus; 1 can ever occur (since transition rates &mu;<sub>k</sub> = 0).
+                Every arriving customer from this point onward is immediately blocked and discarded (<i>a<sub>p</sub></i>(<i>t</i>) &approx; <i>&lambda;</i>(<i>t</i> &minus; <i>T</i><sub>sat</sub>)).
+                The instantaneous admission rate collapses to <i>&lambda;<sub>s</sub></i> = 0 cust/s, and the instantaneous drop rate equals 100% of the arrival rate (<i>&lambda;<sub>p</sub></i> = <i>&lambda;</i>).
+            </li>
+            <li><b>Ample Servers (<i>m</i> = &infin;) with Zero Service Rate:</b>
+                If the server farm has infinite parallel channels (<i>m</i> = &infin;), arriving customers never wait in queue and are never dropped.
+                However, because servers never release customers, the active server footprint <i>c</i><sub>busy</sub>(<i>t</i>) = <i>k</i>(<i>t</i>)
+                diverges linearly toward infinity with mean &Eopf;[<i>k</i>(<i>t</i>)] = <i>&lambda;t</i>.
+            </li>
+        </ul>
+
+        <h2>4. Worked Numerical Example</h2>
+        <div class="example-box">
+            <p class="example-title">Example 1 (System Paralysis & Saturation Timeline under Active Configuration)</p>
+            {example_body}
+        </div>
+
+        <h2>5. Summary of Zero Service Rate Quantities</h2>
+        <table class="book-table">
+            <tr><th>Quantity</th><th>Course Symbol</th><th>Analytical Formula</th><th>Active Value</th><th>Physical Interpretation</th></tr>
+            <tr><td>Service Rate</td><td><i>&mu;</i></td><td>1 / <i>&vartheta;&#772;</i></td><td>0.00 cust/s</td><td>Zero service completions per second</td></tr>
+            <tr><td>Mean Service Time</td><td><i>&vartheta;&#772;</i></td><td>1 / <i>&mu;</i></td><td>&infin; s</td><td>Service duration never terminates</td></tr>
+            <tr><td>Offered Traffic</td><td><i>A</i><sub>0</sub></td><td><i>&lambda;</i> / <i>&mu;</i></td><td>&infin; E</td><td>Singularity (infinite demand vs. zero service)</td></tr>
+            <tr><td>System Carried Throughput</td><td><i>X</i></td><td>lim <i>d</i>(<i>t</i>)/<i>t</i></td><td>0.00 cust/s</td><td>Output stream is completely extinguished</td></tr>
+            <tr><td>Total System Capacity</td><td><i>m</i> + <i>L</i></td><td>Servers + Buffer</td><td>{tot_cap_str} slots</td><td>Total customers system can hold before drops</td></tr>
+            <tr><td>Expected Saturation Time</td><td><i>T</i><sub>sat</sub></td><td>(<i>m</i> + <i>L</i>) / <i>&lambda;</i></td><td>{t_sat_str}</td><td>Elapsed time until total lockup</td></tr>
+            <tr class="bottom-rule"><td>Terminal Drop Fraction</td><td>lim<sub><i>t</i>&rarr;&infin;</sub> <i>&pi;<sub>p</sub></i>(<i>t</i>)</td><td>(<i>a</i>(<i>t</i>) &minus; <i>m</i> &minus; <i>L</i>) / <i>a</i>(<i>t</i>)</td><td>{f"100.00% (Complete Denial)" if is_finite_cap else "0.00% (Infinite Capacity)"}</td><td>Asymptotic customer rejection floor</td></tr>
+        </table>
+        """
+        return title, _format_theory_html(html)
+
+    # ===================================================================
+    # Topics 8 to 15: Performance Metrics
     # ===================================================================
     else:
         m_stats = engine.get_metrics() if (engine is not None and hasattr(engine, "get_metrics")) else {}
@@ -1521,9 +1799,9 @@ def generate_theory_html(
         has_sim_data = (engine is not None and getattr(engine, "current_time", 0.0) > 0.01 and m_stats.get("arrived", 0) > 0)
 
         # ---------------------------------------------------------------
-        # Topic 7: Server Utilization (rho) and Traffic Definitions (A_0, A_s, A_p)
+        # Topic 8: Server Utilization (rho) and Traffic Definitions (A_0, A_s, A_p)
         # ---------------------------------------------------------------
-        if topic_index == 7:
+        if topic_index == 8:
             if math.isinf(vartheta_bar):
                 A0_val = float("inf")
                 rho_offered_ratio = float("inf")
@@ -1708,9 +1986,9 @@ def generate_theory_html(
             return title, _format_theory_html(html)
 
         # ---------------------------------------------------------------
-        # Topic 8: Average Traffic in the System A (GUI: L)
+        # Topic 9: Average Traffic in the System A (GUI: L)
         # ---------------------------------------------------------------
-        elif topic_index == 8:
+        elif topic_index == 9:
             A_val = theo.get("L") if theo else None
             Ac_val = theo.get("Lq") if theo else None
             rho_theo = theo.get("rho", 0.0) if theo else 0.0
@@ -1854,9 +2132,9 @@ def generate_theory_html(
             return title, _format_theory_html(html)
 
         # ---------------------------------------------------------------
-        # Topic 9: Average Customers Waiting in Queue A_c (GUI: Lq)
+        # Topic 10: Average Customers Waiting in Queue A_c (GUI: Lq)
         # ---------------------------------------------------------------
-        elif topic_index == 9:
+        elif topic_index == 10:
             Ac_val = theo.get("Lq") if theo else None
             Ac_sim = m_stats.get("Lq", 0.0)
             littles_Ac = m_stats.get("littles_Lq", 0.0)
@@ -2019,9 +2297,9 @@ def generate_theory_html(
             return title, _format_theory_html(html)
 
         # ---------------------------------------------------------------
-        # Topic 10: Average Sojourn Time \bar{\delta} (GUI: W)
+        # Topic 11: Average Sojourn Time \bar{\delta} (GUI: W)
         # ---------------------------------------------------------------
-        elif topic_index == 10:
+        elif topic_index == 11:
             delta_val = theo.get("W") if theo else None
             eta_val = theo.get("Wq") if theo else None
             delta_sim = m_stats.get("W", 0.0)
@@ -2171,9 +2449,9 @@ def generate_theory_html(
             return title, _format_theory_html(html)
 
         # ---------------------------------------------------------------
-        # Topic 11: Average Waiting Time in Queue \bar{\eta} and \bar{\varepsilon} (GUI: Wq)
+        # Topic 12: Average Waiting Time in Queue \bar{\eta} and \bar{\varepsilon} (GUI: Wq)
         # ---------------------------------------------------------------
-        elif topic_index == 11:
+        elif topic_index == 12:
             eta_val = theo.get("Wq") if theo else None
             eta_sim = m_stats.get("Wq", 0.0)
             served_cnt = m_stats.get("served", 0)
@@ -2338,9 +2616,9 @@ def generate_theory_html(
             return title, _format_theory_html(html)
 
         # ---------------------------------------------------------------
-        # Topic 12: Blocking Probability \pi_p (GUI: P_loss)
+        # Topic 13: Blocking Probability \pi_p (GUI: P_loss)
         # ---------------------------------------------------------------
-        elif topic_index == 12:
+        elif topic_index == 13:
             pi_p_theo = theo.get("p_loss", 0.0) if theo else None
             pi_p_theo_str = f"{pi_p_theo*100.0:.2f}% ({pi_p_theo:.4f})" if pi_p_theo is not None else "N/A (No Closed Form)"
             pi_p_sim = m_stats.get("p_loss", 0.0)
@@ -2497,9 +2775,9 @@ def generate_theory_html(
             return title, _format_theory_html(html)
 
         # ---------------------------------------------------------------
-        # Topic 13: Little's Law A = \lambda_s \bar{\delta} (GUI: L_diff)
+        # Topic 14: Little's Law A = \lambda_s \bar{\delta} (GUI: L_diff)
         # ---------------------------------------------------------------
-        elif topic_index == 13:
+        elif topic_index == 14:
             A_sim = m_stats.get("L", 0.0)
             Ac_sim = m_stats.get("Lq", 0.0)
             delta_sim = m_stats.get("W", 0.0)

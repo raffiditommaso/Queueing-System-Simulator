@@ -7,7 +7,7 @@
 
 An interactive **Discrete-Event Simulation (DES)** and pedagogical queueing theory workstation designed for Master's degree courses in **Network Design**, **Teletraffic Engineering**, and **Computer Systems Performance Modeling**.
 
-The platform combines an event-driven stochastic simulation engine, a real-time 2D animated vector canvas, live birth-death Markov chain visualization, dynamic Matplotlib analytics, and an integrated **15-chapter publication-quality educational theory library** with Computer Modern $\mathrm{\LaTeX}$ formulas.
+The platform combines an event-driven stochastic simulation engine, a real-time 2D animated vector canvas, live birth-death Markov chain visualization, dynamic Matplotlib analytics, and an integrated **16-pages educational theory library** with Computer Modern $\mathrm{\LaTeX}$ formulas.
 
 ---
 
@@ -63,7 +63,7 @@ The platform combines an event-driven stochastic simulation engine, a real-time 
     $$L_{\text{diff}} = |A - \lambda_s \bar{\delta}|$$
 
 - **Embedded 15-Topic $\mathrm{\LaTeX}$ Theory Textbook (`gui.theory_tab.TheoryPdfTab`)**:
-  - Full textbook-style theory chapters compiled dynamically into A4 PDF documents.
+  - Textbook-style theory pages compiled dynamically into PDF documents.
   - Math formulated in Computer Modern font generated via Matplotlib $\mathrm{\LaTeX}$ engine and base64 vector rasterization.
   - Strict academic typography rendered in Cambria/Georgia serif with pure `#ffffff` white paper background.
   - One-click access via contextual `?` buttons beside every distribution selector, parameter slider, and output metric.
@@ -200,7 +200,7 @@ Queueing System Simulator/
 │   ├── main_window.py                  # Main application window (QueueSimulatorApp)
 │   ├── markov_canvas.py                # Birth-death Markov chain state diagram (MarkovChainView)
 │   ├── styles.py                       # Catppuccin theme styling and textbook theory CSS
-│   ├── theory_dialog.py                # LaTeX formula renderer & 15-chapter theory generator
+│   ├── theory_dialog.py                # LaTeX formula renderer & 16-pages theory generator
 │   ├── theory_tab.py                   # High-resolution PDF theory tab with QPdfDocument
 │   └── widgets.py                      # NoWheel inputs, NumberStepper, GlobalZoomFilter
 │
@@ -314,7 +314,7 @@ The **Theoretical Validation** tab displays a comprehensive comparison between e
 
 ### Embedded $\mathrm{\LaTeX}$ Theory Textbook
 
-Clicking any **`?`** icon in the sidebar or metrics table opens an authentic A4 PDF theory chapter:
+Clicking any **`?`** icon in the sidebar or metrics table opens an authentic A4 PDF theory pages:
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
@@ -339,22 +339,23 @@ Clicking any **`?`** icon in the sidebar or metrics table opens an authentic A4 
 └─────────────────────────────────────────────────────────────┘
 ```
 
-#### Complete List of 15 Theory Chapters:
+#### Complete List of 16 Theory Pages:
 1. **Exponential Distribution ($M$)**: Poisson process, memoryless property, residual lifetime.
 2. **Deterministic Distribution ($D$)**: Zero jitter, $M/D/1$ queueing reductions.
 3. **Uniform Distribution ($U$)**: Bounded variance, rectangular PDF.
 4. **Erlang Distribution ($E_k$)**: Multistage service phases, variance reduction.
 5. **Hyperexponential Distribution ($H_2$)**: Bursty packet traffic, coefficient of variation $C_v > 1$.
 6. **Pareto Distribution**: Heavy tails, infinite variance regimes, self-similarity.
-7. **Stochastic Stability & Ergodicity**: Traffic condition $\rho = A_0/m < 1$, transient drift, queue explosion.
-8. **Metric Theory: Server Utilization ($\rho$)**: Carried traffic $A_s$, offered traffic $A_0$, server busy time.
-9. **Metric Theory: Average System Traffic ($A$, $L$)**: Time-average occupancy $\langle k(t) \rangle$.
-10. **Metric Theory: Average Queue Occupancy ($A_c$, $L_q$)**: Buffer accumulation and queue delay.
-11. **Metric Theory: Average Sojourn Time ($\bar{\delta}$, $W$)**: System residence time decomposition $\bar{\delta} = \bar{\eta} + \bar{\vartheta}$.
-12. **Metric Theory: Average Waiting Time ($\bar{\eta}$, $\bar{\varepsilon}$, $W_q$)**: Generic vs. queued customer delays.
-13. **Metric Theory: Blocking Probability ($\pi_p$, $P_{\text{loss}}$)**: Erlang-B formula, finite buffer rejections.
-14. **Metric Theory: Little's Law ($A = \lambda_s \bar{\delta}$)**: Operational validity, sample-path conservation.
-15. **Metric Theory: Customer Flow Balance**: Inflow $a(t)$, outflow $d(t)$, drops $a_p(t)$, and carried throughput $\lambda_s$.
+7. **Stochastic Stability: Overload ($\rho \ge 1.0$ & Ergodicity)**: Positive accumulation drift $\lambda - m\mu$, Foster-Lyapunov criterion, transient explosion, and asymptotic blocking floor $\lim_{L \to \infty} \pi_p = 1 - 1/\rho$.
+8. **Stochastic Stability: Zero Service Rate ($\mu = 0$ & Frozen)**: Service paralysis, infinite duration $\overline{\vartheta} = \infty$, throughput collapse ($X = 0$, $d(t) \equiv 0$), saturation time $T_{\mathrm{sat}} = (m+K)/\lambda$, and 100% terminal service denial.
+9. **Metric Theory: Server Utilization ($\rho$)**: Carried traffic $A_s$, offered traffic $A_0$, server busy time.
+10. **Metric Theory: Average System Traffic ($A$, $L$)**: Time-average occupancy $\langle k(t) \rangle$.
+11. **Metric Theory: Average Queue Occupancy ($A_c$, $L_q$)**: Buffer accumulation and queue delay.
+12. **Metric Theory: Average Sojourn Time ($\bar{\delta}$, $W$)**: System residence time decomposition $\bar{\delta} = \bar{\eta} + \bar{\vartheta}$.
+13. **Metric Theory: Average Waiting Time ($\bar{\eta}$, $\bar{\varepsilon}$, $W_q$)**: Generic vs. queued customer delays.
+14. **Metric Theory: Blocking Probability ($\pi_p$, $P_{\text{loss}}$)**: Erlang-B formula, finite buffer rejections.
+15. **Metric Theory: Little's Law ($A = \lambda_s \bar{\delta}$)**: Operational validity, sample-path conservation.
+16. **Metric Theory: Customer Flow Balance**: Inflow $a(t)$, outflow $d(t)$, drops $a_p(t)$, and carried throughput $\lambda_s$.
 
 ### Smart Context-Sensitive Optical Zoom
 

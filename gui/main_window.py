@@ -985,11 +985,11 @@ class QueueSimulatorApp(QMainWindow):
             fl.addWidget(lbl_v)
             return frame, lbl_v
 
-        self.card_n, self.val_n = make_card("Traffic k(t)", "0", "#cdd6f4", 8)
-        self.card_served, self.val_served = make_card("Departures / Arrivals d / a", "0 / 0", "#a6e3a1", 14)
-        self.card_drop, self.val_drop = make_card("Blocking Probability π_p", "0 (0.0%)", "#f38ba8", 12)
-        self.card_wait, self.val_wait = make_card("Avg Waiting Time η̄", "0.00s", "#89b4fa", 11)
-        self.card_littles, self.val_littles = make_card("Little's Law |A - λ_s δ̄|", "0.000", "#f9e2af", 13)
+        self.card_n, self.val_n = make_card("Traffic k(t)", "0", "#cdd6f4", 9)
+        self.card_served, self.val_served = make_card("Departures / Arrivals d / a", "0 / 0", "#a6e3a1", 15)
+        self.card_drop, self.val_drop = make_card("Blocking Probability π_p", "0 (0.0%)", "#f38ba8", 13)
+        self.card_wait, self.val_wait = make_card("Avg Waiting Time η̄", "0.00s", "#89b4fa", 12)
+        self.card_littles, self.val_littles = make_card("Little's Law |A - λ_s δ̄|", "0.000", "#f9e2af", 14)
 
         layout.addWidget(self.card_n)
         layout.addWidget(self.card_served)
@@ -1298,9 +1298,11 @@ class QueueSimulatorApp(QMainWindow):
 
     def _show_theory_dialog(self):
         lam = sum(1.0 / d.mean() for d in self.engine.arrival_dists.values() if d is not None)
-        mu = 1.0 / self.engine.service_dist.mean()
+        mean_s = self.engine.service_dist.mean()
+        mu = (1.0 / mean_s) if (not math.isinf(mean_s) and mean_s > 0) else 0.0
         rho = self.engine.get_metrics()['rho']
-        self.show_theory_tab(topic_index=6, rho=rho, lam=lam, mu=mu, m=self.engine.c)
+        target_topic = 7 if mu <= 0 else 6
+        self.show_theory_tab(topic_index=target_topic, rho=rho, lam=lam, mu=mu, m=self.engine.c)
 
     def _show_arr_dist_theory(self):
         idx = self.combo_arr_dist.currentIndex()
@@ -1314,9 +1316,10 @@ class QueueSimulatorApp(QMainWindow):
         self._show_metric_theory(0)
 
     def _show_metric_theory(self, metric_idx: int):
-        topic_idx = 7 + metric_idx
+        topic_idx = 8 + metric_idx
         lam = sum(1.0 / d.mean() for d in self.engine.arrival_dists.values() if d is not None)
-        mu = 1.0 / self.engine.service_dist.mean()
+        mean_s = self.engine.service_dist.mean()
+        mu = (1.0 / mean_s) if (not math.isinf(mean_s) and mean_s > 0) else 0.0
         rho = self.engine.get_metrics()['rho']
         self.show_theory_tab(topic_index=topic_idx, rho=rho, lam=lam, mu=mu, m=self.engine.c)
 
@@ -1415,11 +1418,15 @@ class QueueSimulatorApp(QMainWindow):
             else:
                 self.lbl_stab_status.setText("Frozen System (Zero Service Rate μ = 0 cust/s)")
                 self.lbl_stab_status.setStyleSheet("font-size: 11px; font-weight: bold; color: #f38ba8;")
+                self.btn_warning_why.setText("Warning: Zero Service Rate (μ = 0) - See Why")
+                self.btn_why.setText("See Why: Zero Service Rate Theory (μ = 0)")
                 self.btn_why.setVisible(True)
                 self.btn_warning_why.setVisible(True)
         elif mu <= 0:
             self.lbl_stab_status.setText("Frozen System (Zero Service Rate μ = 0 cust/s)")
             self.lbl_stab_status.setStyleSheet("font-size: 11px; font-weight: bold; color: #f38ba8;")
+            self.btn_warning_why.setText("Warning: Zero Service Rate (μ = 0) - See Why")
+            self.btn_why.setText("See Why: Zero Service Rate Theory (μ = 0)")
             self.btn_why.setVisible(True)
             self.btn_warning_why.setVisible(True)
         else:
@@ -1437,6 +1444,8 @@ class QueueSimulatorApp(QMainWindow):
             else:
                 self.lbl_stab_status.setText(f"Warning: Overload / Unstable (A₀/m = {a0_per_server:.2f} ≥ 1.0)")
                 self.lbl_stab_status.setStyleSheet("font-size: 11px; font-weight: bold; color: #f38ba8;")
+                self.btn_warning_why.setText("Warning: Overload (A₀/m ≥ 1.0) - See Why")
+                self.btn_why.setText("See Why: Mathematical Theory")
                 self.btn_why.setVisible(True)
                 self.btn_warning_why.setVisible(True)
 
