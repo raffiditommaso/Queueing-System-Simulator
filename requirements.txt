@@ -1,0 +1,7 @@
+# Queueing System Simulator - runtime dependencies
+# Install with:  python -m pip install -r requirements.txt
+#
+# Only the base PyQt6 wheel is needed (QtCore, QtGui, QtWidgets).
+# No PDF / printing / WebEngine add-ons are required.
+PyQt6>=6.4
+matplotlib>=3.5
